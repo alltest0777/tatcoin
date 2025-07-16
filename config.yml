@@ -1,0 +1,9 @@
+name: tatcoin
+genesis:
+  accounts:
+    - name: validator
+      coins:
+        - 1000000000tat
+  validators:
+    - name: validator
+      bonded: 100000000tat
