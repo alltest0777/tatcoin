@@ -3,19 +3,19 @@
 </p>
 
 <h1 align="center">TatCoin Manifesto</h1>
-<h3 align="center">?? Set Sail to Decentralization ?</h3>
+<h3 align="center">рџљЂ Set Sail to Decentralization вљ“</h3>
 
 ---
 
-## English ??  
+## English рџЊЌ  
 
-We launch **TatCoin** — a decentralized cryptocurrency built on the principles of openness, fairness, and resilience.  
+We launch **TatCoin** вЂ” a decentralized cryptocurrency built on the principles of openness, fairness, and resilience.  
 
 TatCoin is:  
-- ?? **Freedom of access.** Anyone can join the network, create a wallet, and use TatCoin without restrictions.  
-- ?? **Reliability.** Powered by Proof-of-Stake consensus, security is provided by validators, and trust is distributed.  
-- ?? **Fairness.** Emission is transparent, rules are equal for all participants, there is no hidden agenda.  
-- ?? **Community.** TatCoin does not belong to a single person or company, but to everyone willing to contribute.  
+- рџљЂ **Freedom of access.** Anyone can join the network, create a wallet, and use TatCoin without restrictions.  
+- рџ”’ **Reliability.** Powered by Proof-of-Stake consensus, security is provided by validators, and trust is distributed.  
+- вљ–пёЏ **Fairness.** Emission is transparent, rules are equal for all participants, there is no hidden agenda.  
+- рџЊЌ **Community.** TatCoin does not belong to a single person or company, but to everyone willing to contribute.  
 
 We believe:  
 - In the value of open technologies that bring independence.  
@@ -25,26 +25,26 @@ We believe:
 **Today TatCoin sets out on a free voyage across the boundless digital sea.**  
 May its blocks be milestones of a new path, and its network a boundless ocean of opportunities.  
 
-**TatCoin — Set Sail!**
+**TatCoin вЂ” Set Sail!**
 
 ---
 
-## Русский ????  
+## Р СѓСЃСЃРєРёР№ рџ‡·рџ‡є  
 
-Мы запускаем **TatCoin** — децентрализованную криптовалюту, созданную на принципах открытости, справедливости и устойчивости.  
+РњС‹ Р·Р°РїСѓСЃРєР°РµРј **TatCoin** вЂ” РґРµС†РµРЅС‚СЂР°Р»РёР·РѕРІР°РЅРЅСѓСЋ РєСЂРёРїС‚РѕРІР°Р»СЋС‚Сѓ, СЃРѕР·РґР°РЅРЅСѓСЋ РЅР° РїСЂРёРЅС†РёРїР°С… РѕС‚РєСЂС‹С‚РѕСЃС‚Рё, СЃРїСЂР°РІРµРґР»РёРІРѕСЃС‚Рё Рё СѓСЃС‚РѕР№С‡РёРІРѕСЃС‚Рё.  
 
-TatCoin — это:  
-- ?? **Свобода доступа.** Любой человек может подключиться к сети, создать кошелёк и использовать TatCoin без ограничений.  
-- ?? **Надёжность.** Сеть работает на механизме Proof-of-Stake, где безопасность обеспечивается валидаторами, а доверие распределено.  
-- ?? **Справедливость.** Эмиссия прозрачна, правила одинаковы для всех участников, никакой «закулисы».  
-- ?? **Сообщество.** TatCoin принадлежит не одному человеку или компании, а всем, кто готов вносить вклад в развитие.  
+TatCoin вЂ” СЌС‚Рѕ:  
+- рџљЂ **РЎРІРѕР±РѕРґР° РґРѕСЃС‚СѓРїР°.** Р›СЋР±РѕР№ С‡РµР»РѕРІРµРє РјРѕР¶РµС‚ РїРѕРґРєР»СЋС‡РёС‚СЊСЃСЏ Рє СЃРµС‚Рё, СЃРѕР·РґР°С‚СЊ РєРѕС€РµР»С‘Рє Рё РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊ TatCoin Р±РµР· РѕРіСЂР°РЅРёС‡РµРЅРёР№.  
+- рџ”’ **РќР°РґС‘Р¶РЅРѕСЃС‚СЊ.** РЎРµС‚СЊ СЂР°Р±РѕС‚Р°РµС‚ РЅР° РјРµС…Р°РЅРёР·РјРµ Proof-of-Stake, РіРґРµ Р±РµР·РѕРїР°СЃРЅРѕСЃС‚СЊ РѕР±РµСЃРїРµС‡РёРІР°РµС‚СЃСЏ РІР°Р»РёРґР°С‚РѕСЂР°РјРё, Р° РґРѕРІРµСЂРёРµ СЂР°СЃРїСЂРµРґРµР»РµРЅРѕ.  
+- вљ–пёЏ **РЎРїСЂР°РІРµРґР»РёРІРѕСЃС‚СЊ.** Р­РјРёСЃСЃРёСЏ РїСЂРѕР·СЂР°С‡РЅР°, РїСЂР°РІРёР»Р° РѕРґРёРЅР°РєРѕРІС‹ РґР»СЏ РІСЃРµС… СѓС‡Р°СЃС‚РЅРёРєРѕРІ, РЅРёРєР°РєРѕР№ В«Р·Р°РєСѓР»РёСЃС‹В».  
+- рџЊЌ **РЎРѕРѕР±С‰РµСЃС‚РІРѕ.** TatCoin РїСЂРёРЅР°РґР»РµР¶РёС‚ РЅРµ РѕРґРЅРѕРјСѓ С‡РµР»РѕРІРµРєСѓ РёР»Рё РєРѕРјРїР°РЅРёРё, Р° РІСЃРµРј, РєС‚Рѕ РіРѕС‚РѕРІ РІРЅРѕСЃРёС‚СЊ РІРєР»Р°Рґ РІ СЂР°Р·РІРёС‚РёРµ.  
 
-Мы верим:  
-- В ценность открытых технологий, которые дают независимость.  
-- В силу сообществ, которые создают своё будущее сами.  
-- В то, что TatCoin станет инструментом обмена и взаимодействия в новых цифровых экосистемах.  
+РњС‹ РІРµСЂРёРј:  
+- Р’ С†РµРЅРЅРѕСЃС‚СЊ РѕС‚РєСЂС‹С‚С‹С… С‚РµС…РЅРѕР»РѕРіРёР№, РєРѕС‚РѕСЂС‹Рµ РґР°СЋС‚ РЅРµР·Р°РІРёСЃРёРјРѕСЃС‚СЊ.  
+- Р’ СЃРёР»Сѓ СЃРѕРѕР±С‰РµСЃС‚РІ, РєРѕС‚РѕСЂС‹Рµ СЃРѕР·РґР°СЋС‚ СЃРІРѕС‘ Р±СѓРґСѓС‰РµРµ СЃР°РјРё.  
+- Р’ С‚Рѕ, С‡С‚Рѕ TatCoin СЃС‚Р°РЅРµС‚ РёРЅСЃС‚СЂСѓРјРµРЅС‚РѕРј РѕР±РјРµРЅР° Рё РІР·Р°РёРјРѕРґРµР№СЃС‚РІРёСЏ РІ РЅРѕРІС‹С… С†РёС„СЂРѕРІС‹С… СЌРєРѕСЃРёСЃС‚РµРјР°С….  
 
-**Сегодня TatCoin пускается в свободное плавание по бескрайним просторам цифрового моря.**  
-Пусть его блоки станут вехами нового пути, а сеть — морем возможностей для каждого.  
+**РЎРµРіРѕРґРЅСЏ TatCoin РїСѓСЃРєР°РµС‚СЃСЏ РІ СЃРІРѕР±РѕРґРЅРѕРµ РїР»Р°РІР°РЅРёРµ РїРѕ Р±РµСЃРєСЂР°Р№РЅРёРј РїСЂРѕСЃС‚РѕСЂР°Рј С†РёС„СЂРѕРІРѕРіРѕ РјРѕСЂСЏ.**  
+РџСѓСЃС‚СЊ РµРіРѕ Р±Р»РѕРєРё СЃС‚Р°РЅСѓС‚ РІРµС…Р°РјРё РЅРѕРІРѕРіРѕ РїСѓС‚Рё, Р° СЃРµС‚СЊ вЂ” РјРѕСЂРµРј РІРѕР·РјРѕР¶РЅРѕСЃС‚РµР№ РґР»СЏ РєР°Р¶РґРѕРіРѕ.  
 
-**TatCoin — в путь!**
+**TatCoin вЂ” РІ РїСѓС‚СЊ!**
