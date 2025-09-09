@@ -41,7 +41,7 @@ tatcorecleand start
 🔄 Fast Sync
 
 Use state sync for fast synchronization:
-Instructions: statesync.txt
+Instructions: [statesync.txt](https://tat-coin2.duckdns.org/statesync.txt)
 
 💳 Wallet
 
