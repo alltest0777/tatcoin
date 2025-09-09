@@ -59,4 +59,4 @@ Read our official [Manifesto](./MANIFESTO.md)
 🌐 Network Status
 
 Check the live status of the network here:
-👉 Ta[TatCoin Status Page](https://tat-coin2.duckdns.org)
+👉 [TatCoin Status Page](https://tat-coin2.duckdns.org)
