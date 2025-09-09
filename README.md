@@ -17,11 +17,11 @@ make install
 Binary: tatcorecleand
 
 2. Init Node
-```md
+```bash
 tatcorecleand init <your-moniker> --chain-id tat-1
 ```
 3. Download Genesis & Peers
-```md
+```bash
 # genesis
 
 curl -s https://tat-coin2.duckdns.org/genesis.json > ~/.tatcore_tat/config/genesis.json
@@ -31,11 +31,11 @@ curl -s https://tat-coin2.duckdns.org/join-tat-1.txt > ~/.tatcore_tat/config/pee
 ```
 4. Configure Node
 Open ~/.tatcore_tat/config/config.toml and set:
-```md
+```ini
 persistent_peers = "<copy from peers.txt>"
 ```
 5. Start Node
-```md
+```bash
 tatcorecleand start
 ```
 🔄 Fast Sync
