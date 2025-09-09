@@ -45,7 +45,7 @@ Instructions: [statesync.txt](https://tat-coin2.duckdns.org/statesync.txt)
 
 💳 Wallet
 
-Web Wallet: TatCoin Wallet
+Web Wallet: [TatCoin Wallet](https://tat-coin2.duckdns.org/wallet)
 
 Create or import a wallet (mnemonic phrase).
 
@@ -53,10 +53,10 @@ Address format: tat1...
 
 📜 Manifesto
 
-Read our official Manifesto
+Read our official [Manifesto](./MANIFESTO.md)
  🌍⚓
 
 🌐 Network Status
 
 Check the live status of the network here:
-👉 TatCoin Status Page
+👉 Ta[TatCoin Status Page](https://tat-coin2.duckdns.org)
