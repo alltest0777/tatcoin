@@ -24,10 +24,10 @@ tatcorecleand init <your-moniker> --chain-id tat-1
 ```bash
 # genesis
 
-curl -s https://tat-coin2.duckdns.org/genesis.json > ~/.tatcore_tat/config/genesis.json
+curl -s https://tat-coin.duckdns.org/genesis.json > ~/.tatcore_tat/config/genesis.json
 
 # peers (list of persistent_peers)
-curl -s https://tat-coin2.duckdns.org/join-tat-1.txt > ~/.tatcore_tat/config/peers.txt
+curl -s https://tat-coin.duckdns.org/join-tat-1.txt > ~/.tatcore_tat/config/peers.txt
 ```
 4. Configure Node
 Open ~/.tatcore_tat/config/config.toml and set:
@@ -41,11 +41,11 @@ tatcorecleand start
 🔄 Fast Sync
 
 Use state sync for fast synchronization:
-Instructions: [statesync.txt](https://tat-coin2.duckdns.org/statesync.txt)
+Instructions: [statesync.txt](https://tat-coin.duckdns.org/statesync.txt)
 
 💳 Wallet
 
-Web Wallet: [TatCoin Wallet](https://tat-coin2.duckdns.org/wallet)
+Web Wallet: [TatCoin Wallet](https://tat-coin.duckdns.org/wallet)
 
 Create or import a wallet (mnemonic phrase).
 
@@ -59,4 +59,4 @@ Read our official [Manifesto](./MANIFESTO.md)
 🌐 Network Status
 
 Check the live status of the network here:
-👉 [TatCoin Status Page](https://tat-coin2.duckdns.org)
+👉 [TatCoin Status Page](https://tat-coin.duckdns.org)
