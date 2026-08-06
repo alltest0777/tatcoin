@@ -10,3 +10,4 @@ release/
 
 # Build artifacts
 tatcoind
+/tatbench
