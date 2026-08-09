@@ -1,20 +1,20 @@
 import { Outlet } from "react-router-dom";
 
+import TopBar from "../components/layout/TopBar";
+import Sidebar from "../components/navigation/Sidebar";
+
 export default function Layout() {
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#0f172a",
-        color: "#fff",
-        padding: 24,
-      }}
-    >
-      <h1>TatCoin Wallet 2.0</h1>
+    <div className="min-h-screen bg-[#070b14] text-slate-200">
+      <Sidebar />
 
-      <hr />
+      <div className="min-h-screen lg:pl-64">
+        <TopBar />
 
-      <Outlet />
+        <main className="mx-auto w-full max-w-7xl p-6 lg:p-8">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }
