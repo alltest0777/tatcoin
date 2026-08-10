@@ -8,7 +8,6 @@ import {
 
 import {
   createWallet,
-  getWalletAddress,
   importWallet,
 } from "../../lib/wallet-core";
 
@@ -29,7 +28,7 @@ export default function Wallet() {
 
   const [error, setError] = useState("");
 
-  const setActiveAddress = useWalletStore((state) => state.setAddress);
+  const setActiveWallet = useWalletStore((state) => state.setWallet);
 
   if (mode === "create") {
     return (
@@ -80,7 +79,7 @@ export default function Wallet() {
 
                   setMnemonic(wallet.mnemonic);
                   setAddress(wallet.address);
-		  setActiveAddress(wallet.address);
+		  setActiveWallet(wallet.address, wallet.signer);
                 } catch (err) {
                   setError(
                     err instanceof Error
@@ -193,11 +192,11 @@ export default function Wallet() {
                 setError("");
                 setImportAddress("");
 
-                const wallet = await importWallet(importMnemonic);
-                const walletAddress = await getWalletAddress(wallet);
+		const wallet = await importWallet(importMnemonic);
 
-                setImportAddress(walletAddress);
-		setActiveAddress(walletAddress);
+		setImportAddress(wallet.address);
+		setActiveWallet(wallet.address, wallet.signer);
+
               } catch {
                 setError("Invalid recovery phrase");
               } finally {

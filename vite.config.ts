@@ -11,6 +11,12 @@ export default defineConfig({
         target: "http://127.0.0.1:1317",
         changeOrigin: true,
       },
+
+      "/rpc": {
+        target: "http://127.0.0.1:26657",
+        changeOrigin: true,
+        rewrite: (path: string) => path.replace(/^\/rpc/, ""),
+      },
     },
   },
 });

@@ -1,19 +1,33 @@
+import type { OfflineDirectSigner } from "@cosmjs/proto-signing";
 import { create } from "zustand";
 
 interface WalletState {
   address: string | null;
-  setAddress: (address: string) => void;
+  signer: OfflineDirectSigner | null;
+
+  setWallet: (
+    address: string,
+    signer: OfflineDirectSigner,
+  ) => void;
+
   clearWallet: () => void;
 }
 
 export const useWalletStore = create<WalletState>((set) => ({
   address: null,
+  signer: null,
 
-  setAddress: (address) => {
-    set({ address });
+  setWallet: (address, signer) => {
+    set({
+      address,
+      signer,
+    });
   },
 
   clearWallet: () => {
-    set({ address: null });
+    set({
+      address: null,
+      signer: null,
+    });
   },
 }));
