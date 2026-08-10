@@ -1,3 +1,145 @@
+import {
+  RiAddLine,
+  RiArrowDownLine,
+  RiArrowUpLine,
+  RiGlobalLine,
+  RiShieldCheckLine,
+  RiWallet3Line,
+} from "react-icons/ri";
+import { Link } from "react-router-dom";
+
 export default function Dashboard() {
-  return <h2>Dashboard</h2>;
+  const hasWallet = false;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold text-white">Dashboard</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Overview of your TatCoin wallet
+        </p>
+      </div>
+
+      <section className="overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-cyan-400/15 via-slate-900 to-slate-950 p-6 shadow-2xl shadow-black/20">
+        <div className="flex flex-col justify-between gap-8 sm:flex-row sm:items-start">
+          <div>
+            <div className="text-sm font-medium text-slate-400">
+              Total Balance
+            </div>
+
+            <div className="mt-3 flex items-baseline gap-3">
+              <span className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">
+                {hasWallet ? "0.000000" : "—"}
+              </span>
+
+              <span className="text-lg font-medium text-cyan-300">TAT</span>
+            </div>
+
+            <div className="mt-3 text-sm text-slate-500">
+              {hasWallet
+                ? "Available balance"
+                : "Create or import a wallet to get started"}
+            </div>
+          </div>
+
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-400/10 text-cyan-300">
+            <RiWallet3Line className="text-2xl" />
+          </div>
+        </div>
+
+        <div className="mt-8 flex flex-wrap gap-3">
+          {hasWallet ? (
+            <>
+              <Link
+                to="/send"
+                className="inline-flex items-center gap-2 rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+              >
+                <RiArrowUpLine />
+                Send
+              </Link>
+
+              <Link
+                to="/receive"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                <RiArrowDownLine />
+                Receive
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/wallet"
+                className="inline-flex items-center gap-2 rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+              >
+                <RiAddLine />
+                Create wallet
+              </Link>
+
+              <Link
+                to="/wallet"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                Import wallet
+              </Link>
+            </>
+          )}
+        </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-sm text-slate-500">Wallet Address</div>
+              <div className="mt-3 font-medium text-white">
+                {hasWallet ? "tat1..." : "No wallet"}
+              </div>
+            </div>
+
+            <RiWallet3Line className="text-xl text-slate-500" />
+          </div>
+
+          <div className="mt-4 text-xs text-slate-600">
+            {hasWallet ? "TatCoin account" : "Create or import a wallet"}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-sm text-slate-500">Network</div>
+              <div className="mt-3 flex items-center gap-2 font-medium text-white">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                TatCoin Mainnet
+              </div>
+            </div>
+
+            <RiGlobalLine className="text-xl text-slate-500" />
+          </div>
+
+          <div className="mt-4 text-xs text-slate-600">
+            Chain ID: tat-1
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-sm text-slate-500">Staking</div>
+              <div className="mt-3 font-medium text-white">
+                {hasWallet ? "0.000000 TAT" : "—"}
+              </div>
+            </div>
+
+            <RiShieldCheckLine className="text-xl text-slate-500" />
+          </div>
+
+          <div className="mt-4 text-xs text-slate-600">
+            Delegated balance
+          </div>
+        </div>
+      </section>
+    </div>
+  );
 }
