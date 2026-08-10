@@ -8,26 +8,12 @@ import {
 } from "react-icons/ri";
 import { Link } from "react-router-dom";
 import { useWalletStore } from "../../stores/wallet-store";
-import { useQuery } from "@tanstack/react-query";
-import {
-  formatTatBalance,
-  getTatBalance,
-} from "../../services/bank";
 
 export default function Dashboard() {
   const address = useWalletStore((state) => state.address);
   const hasWallet = Boolean(address);
-  const balanceQuery = useQuery({
-    queryKey: ["tat-balance", address],
-    queryFn: () => getTatBalance(address!),
-    enabled: Boolean(address),
-    refetchInterval: 10_000,
-  });
+  const hasWallet = false;
 
-  const formattedBalance =
-    address && balanceQuery.data
-      ? formatTatBalance(balanceQuery.data)
-      : null;
   return (
     <div className="space-y-6">
       <div>
@@ -46,24 +32,16 @@ export default function Dashboard() {
 
             <div className="mt-3 flex items-baseline gap-3">
               <span className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-		{!hasWallet
-		  ? "—"
-		  : balanceQuery.isLoading
-		    ? "Loading..."
-		    : balanceQuery.isError
-		      ? "Error"
-		      : formattedBalance ?? "0.000000"}
+                {hasWallet ? "0.000000" : "—"}
               </span>
 
               <span className="text-lg font-medium text-cyan-300">TAT</span>
             </div>
 
             <div className="mt-3 text-sm text-slate-500">
-	      {!hasWallet
-		  ? "Create or import a wallet to get started"
-		  : balanceQuery.isError
-		    ? "Unable to load balance"
-		    : "Available balance"}
+              {hasWallet
+                ? "Available balance"
+                : "Create or import a wallet to get started"}
             </div>
           </div>
 
@@ -118,7 +96,7 @@ export default function Dashboard() {
             <div>
               <div className="text-sm text-slate-500">Wallet Address</div>
               <div className="mt-3 font-medium text-white">
-		{address ?? "No wallet"}
+                {hasWallet ? "tat1..." : "No wallet"}
               </div>
             </div>
 

@@ -12,6 +12,8 @@ import {
   importWallet,
 } from "../../lib/wallet-core";
 
+import { useWalletStore } from "../../stores/wallet-store";
+
 type WalletMode = "choose" | "create" | "import";
 
 export default function Wallet() {
@@ -26,6 +28,8 @@ export default function Wallet() {
   const [importing, setImporting] = useState(false);
 
   const [error, setError] = useState("");
+
+  const setActiveAddress = useWalletStore((state) => state.setAddress);
 
   if (mode === "create") {
     return (
@@ -76,6 +80,7 @@ export default function Wallet() {
 
                   setMnemonic(wallet.mnemonic);
                   setAddress(wallet.address);
+		  setActiveAddress(wallet.address);
                 } catch (err) {
                   setError(
                     err instanceof Error
@@ -192,6 +197,7 @@ export default function Wallet() {
                 const walletAddress = await getWalletAddress(wallet);
 
                 setImportAddress(walletAddress);
+		setActiveAddress(walletAddress);
               } catch {
                 setError("Invalid recovery phrase");
               } finally {

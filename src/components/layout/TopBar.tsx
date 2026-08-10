@@ -1,6 +1,8 @@
 import { RiNotification3Line } from "react-icons/ri";
+import { useWalletStore } from "../../stores/wallet-store";
 
 export default function TopBar() {
+  const address = useWalletStore((state) => state.address);
   return (
     <header className="sticky top-0 z-20 border-b border-white/10 bg-slate-950/80 px-6 py-4 backdrop-blur-xl">
       <div className="flex items-center justify-between gap-4">
@@ -22,7 +24,9 @@ export default function TopBar() {
 
           <div className="hidden rounded-xl border border-white/10 bg-white/5 px-4 py-2 sm:block">
             <div className="text-xs text-slate-500">Active account</div>
-            <div className="text-sm font-medium text-white">No wallet</div>
+	    <div className="max-w-48 truncate text-sm font-medium text-white">
+	       {address ?? "No wallet"}
+	    </div>
           </div>
         </div>
       </div>
