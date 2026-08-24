@@ -1,3 +1,13 @@
+import { ASSETS } from "../../config/assets";
+import {
+  getTatCoinAddressTransactions,
+  type TatCoinAddressTransaction,
+} from "../../services/explorer/tatcoin";
+import {
+  getDelegations,
+  getRewards,
+  getUnbondings,
+} from "../../services/staking";
 import {
   RiAddLine,
   RiArrowDownLine,
@@ -9,10 +19,7 @@ import {
 import { Link } from "react-router-dom";
 import { useWalletStore } from "../../stores/wallet-store";
 import { useQuery } from "@tanstack/react-query";
-import {
-  formatTatBalance,
-  getTatBalance,
-} from "../../services/bank";
+import { formatTatBalance, getTatBalance } from "../../services/bank";
 
 export default function Dashboard() {
   const address = useWalletStore((state) => state.address);
@@ -24,10 +31,69 @@ export default function Dashboard() {
     refetchInterval: 10_000,
   });
 
+  const delegationsQuery = useQuery({
+    queryKey: ["tat-delegations", address],
+    queryFn: () => getDelegations(address!),
+    enabled: Boolean(address),
+    refetchInterval: 10_000,
+  });
+
+  const rewardsQuery = useQuery({
+    queryKey: ["tat-rewards", address],
+    queryFn: () => getRewards(address!),
+    enabled: Boolean(address),
+    refetchInterval: 10_000,
+  });
+
+  const unbondingsQuery = useQuery({
+    queryKey: ["tat-unbondings", address],
+    queryFn: () => getUnbondings(address!),
+    enabled: Boolean(address),
+    refetchInterval: 10_000,
+  });
+
+  const activityQuery = useQuery({
+    queryKey: ["tat-address-transactions", address],
+    queryFn: () => getTatCoinAddressTransactions(address!),
+    enabled: Boolean(address),
+    refetchInterval: 10_000,
+  });
+
   const formattedBalance =
-    address && balanceQuery.data
-      ? formatTatBalance(balanceQuery.data)
-      : null;
+    address && balanceQuery.data ? formatTatBalance(balanceQuery.data) : null;
+
+  const delegatedUtat = (delegationsQuery.data ?? [])
+    .reduce((total, item) => total + BigInt(item.amountUtat), 0n)
+    .toString();
+
+  const rewardsUtat = (rewardsQuery.data ?? [])
+    .reduce((total, item) => {
+      const [whole = "0"] = item.amountUtat.split(".");
+      return total + BigInt(whole || "0");
+    }, 0n)
+    .toString();
+
+  const unbondingUtat = (unbondingsQuery.data ?? [])
+    .reduce((total, item) => total + BigInt(item.balanceUtat), 0n)
+    .toString();
+
+  const recentActivity = (activityQuery.data ?? []).slice(0, 5);
+
+  function activityLabel(tx: TatCoinAddressTransaction): string {
+    switch (tx.direction) {
+      case "sent":
+        return "Sent";
+      case "received":
+        return "Received";
+      case "delegate":
+        return "Delegate";
+      case "undelegate":
+        return "Undelegate";
+      case "claim_rewards":
+        return "Claim rewards";
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -46,24 +112,24 @@ export default function Dashboard() {
 
             <div className="mt-3 flex items-baseline gap-3">
               <span className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-		{!hasWallet
-		  ? "—"
-		  : balanceQuery.isLoading
-		    ? "Loading..."
-		    : balanceQuery.isError
-		      ? "Error"
-		      : formattedBalance ?? "0.000000"}
+                {!hasWallet
+                  ? "—"
+                  : balanceQuery.isLoading
+                    ? "Loading..."
+                    : balanceQuery.isError
+                      ? "Error"
+                      : (formattedBalance ?? "0.000000")}
               </span>
 
               <span className="text-lg font-medium text-cyan-300">TAT</span>
             </div>
 
             <div className="mt-3 text-sm text-slate-500">
-	      {!hasWallet
-		  ? "Create or import a wallet to get started"
-		  : balanceQuery.isError
-		    ? "Unable to load balance"
-		    : "Available balance"}
+              {!hasWallet
+                ? "Create or import a wallet to get started"
+                : balanceQuery.isError
+                  ? "Unable to load balance"
+                  : "Available balance"}
             </div>
           </div>
 
@@ -112,13 +178,74 @@ export default function Dashboard() {
         </div>
       </section>
 
+      <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+        <div>
+          <div className="text-xs uppercase tracking-wider text-slate-500">
+            Assets
+          </div>
+
+          <div className="mt-2 text-lg font-semibold text-white">
+            Your assets
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3">
+          {ASSETS.map((asset) => {
+            const isTat = asset.id === "tat";
+
+            return (
+              <div
+                key={asset.id}
+                className="flex flex-col justify-between gap-4 rounded-2xl border border-white/10 bg-black/10 p-4 sm:flex-row sm:items-center"
+              >
+                <div>
+                  <div className="font-medium text-white">{asset.name}</div>
+
+                  <div className="mt-1 text-xs text-slate-500">
+                    {asset.symbol}
+                  </div>
+                </div>
+
+                <div className="text-left sm:text-right">
+                  {isTat ? (
+                    <>
+                      <div className="font-semibold text-white">
+                        {hasWallet
+                          ? balanceQuery.isLoading
+                            ? "Loading..."
+                            : balanceQuery.isError
+                              ? "Error"
+                              : `${formattedBalance ?? "0.000000"} TAT`
+                          : "—"}
+                      </div>
+
+                      <div className="mt-1 text-xs text-emerald-300">
+                        Active
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="font-semibold text-slate-400">—</div>
+
+                      <div className="mt-1 text-xs text-amber-300">
+                        Coming soon
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
       <section className="grid gap-4 md:grid-cols-3">
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
           <div className="flex items-start justify-between">
             <div>
               <div className="text-sm text-slate-500">Wallet Address</div>
               <div className="mt-3 font-medium text-white">
-		{address ?? "No wallet"}
+                {address ?? "No wallet"}
               </div>
             </div>
 
@@ -143,27 +270,107 @@ export default function Dashboard() {
             <RiGlobalLine className="text-xl text-slate-500" />
           </div>
 
-          <div className="mt-4 text-xs text-slate-600">
-            Chain ID: tat-1
-          </div>
+          <div className="mt-4 text-xs text-slate-600">Chain ID: tat-1</div>
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
           <div className="flex items-start justify-between">
             <div>
               <div className="text-sm text-slate-500">Staking</div>
+
               <div className="mt-3 font-medium text-white">
-                {hasWallet ? "0.000000 TAT" : "—"}
+                {hasWallet ? `${formatTatBalance(delegatedUtat)} TAT` : "—"}
               </div>
             </div>
 
             <RiShieldCheckLine className="text-xl text-slate-500" />
           </div>
 
-          <div className="mt-4 text-xs text-slate-600">
-            Delegated balance
+          <div className="mt-4 space-y-1 text-xs text-slate-600">
+            <div>
+              Rewards:{" "}
+              <span className="text-emerald-300">
+                {hasWallet ? `${formatTatBalance(rewardsUtat)} TAT` : "—"}
+              </span>
+            </div>
+
+            <div>
+              Unbonding:{" "}
+              <span className="text-amber-300">
+                {hasWallet ? `${formatTatBalance(unbondingUtat)} TAT` : "—"}
+              </span>
+            </div>
           </div>
         </div>
+      </section>
+
+      <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="text-xs uppercase tracking-wider text-slate-500">
+              Recent activity
+            </div>
+
+            <div className="mt-2 text-lg font-semibold text-white">
+              Latest transactions
+            </div>
+          </div>
+
+          <Link
+            to={
+              address
+                ? `/explorer?address=${encodeURIComponent(address)}`
+                : "/explorer"
+            }
+            className="text-sm font-medium text-cyan-300 transition hover:text-cyan-200"
+          >
+            View all →
+          </Link>
+        </div>
+
+        {!hasWallet ? (
+          <div className="mt-6 text-sm text-slate-500">
+            Create or import a wallet to view activity.
+          </div>
+        ) : activityQuery.isLoading ? (
+          <div className="mt-6 text-sm text-slate-500">Loading activity...</div>
+        ) : activityQuery.isError ? (
+          <div className="mt-6 text-sm text-red-300">
+            Unable to load recent activity.
+          </div>
+        ) : recentActivity.length === 0 ? (
+          <div className="mt-6 text-sm text-slate-500">
+            No transactions found.
+          </div>
+        ) : (
+          <div className="mt-6 space-y-3">
+            {recentActivity.map((tx) => (
+              <Link
+                key={tx.hash}
+                to={`/explorer?tx=${encodeURIComponent(tx.hash)}`}
+                className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-black/10 p-4 transition hover:border-cyan-400/20 hover:bg-white/[0.03]"
+              >
+                <div>
+                  <div className="font-medium text-white">
+                    {activityLabel(tx)}
+                  </div>
+
+                  <div className="mt-1 text-xs text-slate-500">
+                    Block #{tx.height}
+                  </div>
+                </div>
+
+                <div className="text-right font-medium text-slate-200">
+                  {tx.direction === "sent" && "-"}
+                  {(tx.direction === "received" ||
+                    tx.direction === "claim_rewards") &&
+                    "+"}
+                  {formatTatBalance(tx.amountUtat)} TAT
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

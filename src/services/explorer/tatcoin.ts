@@ -53,8 +53,20 @@ export interface TatCoinTransaction {
   height: string;
   code: number;
   timestamp: string | null;
+
+  type:
+    | "send"
+    | "delegate"
+    | "undelegate"
+    | "claim_rewards"
+    | "unknown";
+
   fromAddress: string | null;
   toAddress: string | null;
+
+  delegatorAddress: string | null;
+  validatorAddress: string | null;
+
   amountUtat: string | null;
   feeUtat: string | null;
 }
@@ -65,7 +77,9 @@ export async function getTatCoinTransaction(
   const normalizedHash = hash.trim().toUpperCase();
 
   const response = await fetch(
-  `/cosmos/tx/v1beta1/txs/${encodeURIComponent(normalizedHash)}`,
+    `/cosmos/tx/v1beta1/txs/${encodeURIComponent(
+      normalizedHash,
+    )}`,
   );
 
   if (!response.ok) {
@@ -85,14 +99,147 @@ export async function getTatCoinTransaction(
 
   const message = tx?.body?.messages?.[0];
 
-  const amountCoin =
-    Array.isArray(message?.amount)
-      ? message.amount.find(
-          (coin: { denom?: string }) =>
-            coin.denom === "utat",
-        )
-      : null;
+  const messageType =
+    typeof message?.["@type"] === "string"
+      ? message["@type"]
+      : "";
 
+  let type: TatCoinTransaction["type"] =
+    "unknown";
+
+  let fromAddress: string | null = null;
+  let toAddress: string | null = null;
+
+  let delegatorAddress: string | null = null;
+  let validatorAddress: string | null = null;
+
+  let amountUtat: string | null = null;
+
+  /*
+   * Normal bank transfer
+   */
+  if (
+    messageType ===
+    "/cosmos.bank.v1beta1.MsgSend"
+  ) {
+    type = "send";
+
+    fromAddress =
+      message?.from_address ?? null;
+
+    toAddress =
+      message?.to_address ?? null;
+
+    const amountCoin =
+      Array.isArray(message?.amount)
+        ? message.amount.find(
+            (coin: { denom?: string }) =>
+              coin.denom === "utat",
+          )
+        : null;
+
+    amountUtat =
+      amountCoin?.amount ?? null;
+  }
+
+  /*
+   * Delegate
+   */
+  if (
+    messageType ===
+    "/cosmos.staking.v1beta1.MsgDelegate"
+  ) {
+    type = "delegate";
+
+    delegatorAddress =
+      message?.delegator_address ?? null;
+
+    validatorAddress =
+      message?.validator_address ?? null;
+
+    if (
+      message?.amount?.denom === "utat"
+    ) {
+      amountUtat =
+        message.amount.amount ?? null;
+    }
+  }
+
+  /*
+   * Undelegate
+   */
+  if (
+    messageType ===
+    "/cosmos.staking.v1beta1.MsgUndelegate"
+  ) {
+    type = "undelegate";
+
+    delegatorAddress =
+      message?.delegator_address ?? null;
+
+    validatorAddress =
+      message?.validator_address ?? null;
+
+    if (
+      message?.amount?.denom === "utat"
+    ) {
+      amountUtat =
+        message.amount.amount ?? null;
+    }
+  }
+
+  /*
+   * Claim staking rewards
+   */
+  if (
+    messageType ===
+    "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward"
+  ) {
+    type = "claim_rewards";
+
+    delegatorAddress =
+      message?.delegator_address ?? null;
+
+    validatorAddress =
+      message?.validator_address ?? null;
+
+    const events = Array.isArray(
+      txResponse?.events,
+    )
+      ? txResponse.events
+      : [];
+
+    const withdrawEvent = events.find(
+      (event: { type?: string }) =>
+        event.type === "withdraw_rewards",
+    );
+
+    const amountAttribute =
+      Array.isArray(withdrawEvent?.attributes)
+        ? withdrawEvent.attributes.find(
+            (attribute: {
+              key?: string;
+              value?: string;
+            }) =>
+              attribute.key === "amount",
+          )
+        : null;
+
+    const rewardAmount =
+      amountAttribute?.value;
+
+    if (
+      typeof rewardAmount === "string" &&
+      rewardAmount.endsWith("utat")
+    ) {
+      amountUtat =
+        rewardAmount.slice(0, -"utat".length);
+    }
+  }
+
+  /*
+   * Network fee
+   */
   const feeCoin =
     Array.isArray(tx?.auth_info?.fee?.amount)
       ? tx.auth_info.fee.amount.find(
@@ -102,19 +249,28 @@ export async function getTatCoinTransaction(
       : null;
 
   return {
-    hash: txResponse?.txhash ?? normalizedHash,
-    height: txResponse?.height ?? "",
-    code: Number(txResponse?.code ?? 0),
-    timestamp: txResponse?.timestamp ?? null,
+    hash:
+      txResponse?.txhash ??
+      normalizedHash,
 
-    fromAddress:
-      message?.from_address ?? null,
+    height:
+      txResponse?.height ?? "",
 
-    toAddress:
-      message?.to_address ?? null,
+    code:
+      Number(txResponse?.code ?? 0),
 
-    amountUtat:
-      amountCoin?.amount ?? null,
+    timestamp:
+      txResponse?.timestamp ?? null,
+
+    type,
+
+    fromAddress,
+    toAddress,
+
+    delegatorAddress,
+    validatorAddress,
+
+    amountUtat,
 
     feeUtat:
       feeCoin?.amount ?? null,
@@ -227,11 +383,22 @@ export interface TatCoinAddressTransaction {
   hash: string;
   height: string;
   timestamp: string;
+
   fromAddress: string;
   toAddress: string;
+
+  delegatorAddress: string;
+  validatorAddress: string;
+
   amountUtat: string;
   feeUtat: string;
-  direction: "sent" | "received";
+
+  direction:
+    | "sent"
+    | "received"
+    | "delegate"
+    | "undelegate"
+    | "claim_rewards";
 }
 
 interface TxSearchResponse {
@@ -239,14 +406,25 @@ interface TxSearchResponse {
     body?: {
       messages?: Array<{
         "@type"?: string;
+
         from_address?: string;
         to_address?: string;
-        amount?: Array<{
-          denom?: string;
-          amount?: string;
-        }>;
+
+        delegator_address?: string;
+        validator_address?: string;
+
+        amount?:
+          | Array<{
+              denom?: string;
+              amount?: string;
+            }>
+          | {
+              denom?: string;
+              amount?: string;
+            };
       }>;
     };
+
     auth_info?: {
       fee?: {
         amount?: Array<{
@@ -262,6 +440,14 @@ interface TxSearchResponse {
     txhash?: string;
     timestamp?: string;
     code?: number;
+
+    events?: Array<{
+      type?: string;
+      attributes?: Array<{
+        key?: string;
+        value?: string;
+      }>;
+    }>;
   }>;
 }
 
@@ -275,6 +461,7 @@ async function searchAddressTransactions(
     "query",
     `${event}='${address}'`,
   );
+
   params.set("limit", "50");
   params.set("order_by", "ORDER_BY_DESC");
 
@@ -288,54 +475,222 @@ async function searchAddressTransactions(
     );
   }
 
-  const data = (await response.json()) as TxSearchResponse;
+  const data =
+    (await response.json()) as TxSearchResponse;
 
   const txs = data.txs ?? [];
   const responses = data.tx_responses ?? [];
 
-  return txs.flatMap((tx, index) => {
+  return txs.flatMap<TatCoinAddressTransaction>((tx, index) => {
     const txResponse = responses[index];
 
     if (!txResponse || txResponse.code !== 0) {
       return [];
     }
 
-    const message = tx.body?.messages?.find(
-      (item) =>
-        item["@type"] === "/cosmos.bank.v1beta1.MsgSend",
-    );
+    const message =
+      tx.body?.messages?.[0];
 
     if (!message) {
       return [];
     }
 
-    const fromAddress = message.from_address ?? "";
-    const toAddress = message.to_address ?? "";
-
-    const amountUtat =
-      message.amount?.find((coin) => coin.denom === "utat")
-        ?.amount ?? "0";
+    const messageType =
+      message["@type"] ?? "";
 
     const feeUtat =
       tx.auth_info?.fee?.amount?.find(
         (coin) => coin.denom === "utat",
       )?.amount ?? "0";
 
-    return [
-      {
-        hash: txResponse.txhash ?? "",
-        height: txResponse.height ?? "",
-        timestamp: txResponse.timestamp ?? "",
-        fromAddress,
-        toAddress,
-        amountUtat,
-        feeUtat,
-        direction:
-          fromAddress === address
-            ? ("sent" as const)
-            : ("received" as const),
-      },
-    ];
+    /*
+     * SEND / RECEIVE
+     */
+    if (
+      messageType ===
+      "/cosmos.bank.v1beta1.MsgSend"
+    ) {
+      const fromAddress =
+        message.from_address ?? "";
+
+      const toAddress =
+        message.to_address ?? "";
+
+      const amountCoin =
+        Array.isArray(message.amount)
+          ? message.amount.find(
+              (coin) =>
+                coin.denom === "utat",
+            )
+          : null;
+
+      return [
+        {
+          hash: txResponse.txhash ?? "",
+          height: txResponse.height ?? "",
+          timestamp:
+            txResponse.timestamp ?? "",
+
+          fromAddress,
+          toAddress,
+
+          delegatorAddress: "",
+          validatorAddress: "",
+
+          amountUtat:
+            amountCoin?.amount ?? "0",
+
+          feeUtat,
+
+          direction:
+            fromAddress === address
+              ? ("sent" as const)
+              : ("received" as const),
+        },
+      ];
+    }
+
+    /*
+     * DELEGATE
+     */
+    if (
+      messageType ===
+      "/cosmos.staking.v1beta1.MsgDelegate"
+    ) {
+      const amountCoin =
+        !Array.isArray(message.amount)
+          ? message.amount
+          : null;
+
+      return [
+        {
+          hash: txResponse.txhash ?? "",
+          height: txResponse.height ?? "",
+          timestamp:
+            txResponse.timestamp ?? "",
+
+          fromAddress: "",
+          toAddress: "",
+
+          delegatorAddress:
+            message.delegator_address ?? "",
+
+          validatorAddress:
+            message.validator_address ?? "",
+
+          amountUtat:
+            amountCoin?.denom === "utat"
+              ? amountCoin.amount ?? "0"
+              : "0",
+
+          feeUtat,
+
+          direction:
+            "delegate" as const,
+        },
+      ];
+    }
+
+    /*
+     * UNDELEGATE
+     */
+    if (
+      messageType ===
+      "/cosmos.staking.v1beta1.MsgUndelegate"
+    ) {
+      const amountCoin =
+        !Array.isArray(message.amount)
+          ? message.amount
+          : null;
+
+      return [
+        {
+          hash: txResponse.txhash ?? "",
+          height: txResponse.height ?? "",
+          timestamp:
+            txResponse.timestamp ?? "",
+
+          fromAddress: "",
+          toAddress: "",
+
+          delegatorAddress:
+            message.delegator_address ?? "",
+
+          validatorAddress:
+            message.validator_address ?? "",
+
+          amountUtat:
+            amountCoin?.denom === "utat"
+              ? amountCoin.amount ?? "0"
+              : "0",
+
+          feeUtat,
+
+          direction:
+            "undelegate" as const,
+        },
+      ];
+    }
+
+    /*
+     * CLAIM REWARDS
+     */
+    if (
+      messageType ===
+      "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward"
+    ) {
+      const withdrawEvent =
+        txResponse.events?.find(
+          (item) =>
+            item.type ===
+            "withdraw_rewards",
+        );
+
+      const amountAttribute =
+        withdrawEvent?.attributes?.find(
+          (attribute) =>
+            attribute.key === "amount",
+        );
+
+      const rewardValue =
+        amountAttribute?.value ?? "";
+
+      let amountUtat = "0";
+
+      if (rewardValue.endsWith("utat")) {
+        amountUtat =
+          rewardValue.slice(
+            0,
+            -"utat".length,
+          );
+      }
+
+      return [
+        {
+          hash: txResponse.txhash ?? "",
+          height: txResponse.height ?? "",
+          timestamp:
+            txResponse.timestamp ?? "",
+
+          fromAddress: "",
+          toAddress: "",
+
+          delegatorAddress:
+            message.delegator_address ?? "",
+
+          validatorAddress:
+            message.validator_address ?? "",
+
+          amountUtat,
+          feeUtat,
+
+          direction:
+            "claim_rewards" as const,
+        },
+      ];
+    }
+
+    return [];
   });
 }
 

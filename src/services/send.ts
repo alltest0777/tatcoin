@@ -6,7 +6,7 @@ import {
 } from "@cosmjs/stargate";
 
 export const RPC_URL =
-  `${window.location.protocol}//${window.location.host}/rpc`;
+  `${window.location.protocol}//${window.location.host}/rpc/`;
 
 export const BASE_DENOM = "utat";
 export const GAS_PRICE = "0.025utat";
