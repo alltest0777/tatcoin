@@ -12,6 +12,8 @@ import { useWalletStore } from "../../stores/wallet-store";
 
 import { deriveMultichainAddresses } from "../../lib/multichain-wallet";
 
+import { getBitcoinSigningAddress } from "../../lib/bitcoin-wallet";
+
 type WalletMode = "choose" | "create" | "import" | "unlock";
 
 export default function Wallet() {
@@ -122,6 +124,12 @@ export default function Wallet() {
                 setDerivedAddresses(null);
 
                 const result = await deriveMultichainAddresses(unlockMnemonic);
+
+                const signingAddress = getBitcoinSigningAddress(unlockMnemonic);
+
+                if (signingAddress !== result.btc) {
+                  throw new Error("Bitcoin signing address mismatch");
+                }
 
                 setDerivedAddresses(result);
               } catch (err) {

@@ -19,6 +19,7 @@
     "@scure/base": "^2.3.0",
     "@scure/bip32": "^2.3.0",
     "@scure/bip39": "^2.3.0",
+    "@scure/btc-signer": "^2.3.0",
     "@tanstack/react-query": "^5.101.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
