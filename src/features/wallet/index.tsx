@@ -39,10 +39,15 @@ export default function Wallet() {
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   const setActiveWallet = useWalletStore((state) => state.setWallet);
+  const setMultichainAddresses = useWalletStore(
+    (state) => state.setMultichainAddresses,
+  );
   const lockWallet = useWalletStore((state) => state.lockWallet);
   const removeWallet = useWalletStore((state) => state.removeWallet);
 
   const activeAddress = useWalletStore((state) => state.address);
+  const btcAddress = useWalletStore((state) => state.btcAddress);
+  const ethAddress = useWalletStore((state) => state.ethAddress);
   const signer = useWalletStore((state) => state.signer);
 
   const walletLocked = Boolean(activeAddress && !signer);
@@ -192,6 +197,10 @@ export default function Wallet() {
                 }
 
                 setActiveWallet(wallet.address, wallet.signer);
+                const multichain =
+                  await deriveMultichainAddresses(unlockMnemonic);
+
+                setMultichainAddresses(multichain.btc, multichain.eth);
 
                 setUnlockMnemonic("");
                 setMode("choose");
@@ -268,6 +277,11 @@ export default function Wallet() {
                   setMnemonic(wallet.mnemonic);
                   setAddress(wallet.address);
                   setActiveWallet(wallet.address, wallet.signer);
+                  const multichain = await deriveMultichainAddresses(
+                    wallet.mnemonic,
+                  );
+
+                  setMultichainAddresses(multichain.btc, multichain.eth);
                 } catch (err) {
                   setError(
                     err instanceof Error
@@ -382,6 +396,10 @@ export default function Wallet() {
 
                 setImportAddress(wallet.address);
                 setActiveWallet(wallet.address, wallet.signer);
+                const multichain =
+                  await deriveMultichainAddresses(importMnemonic);
+
+                setMultichainAddresses(multichain.btc, multichain.eth);
               } catch {
                 setError("Invalid recovery phrase");
               } finally {
@@ -448,6 +466,30 @@ export default function Wallet() {
               <div className="mt-2 break-all font-mono text-xs text-slate-400">
                 {activeAddress}
               </div>
+
+              {btcAddress && (
+                <div className="mt-3">
+                  <div className="text-xs uppercase tracking-wider text-slate-500">
+                    Bitcoin
+                  </div>
+
+                  <div className="mt-1 break-all font-mono text-xs text-amber-300">
+                    {btcAddress}
+                  </div>
+                </div>
+              )}
+
+              {ethAddress && (
+                <div className="mt-3">
+                  <div className="text-xs uppercase tracking-wider text-slate-500">
+                    Ethereum
+                  </div>
+
+                  <div className="mt-1 break-all font-mono text-xs text-violet-300">
+                    {ethAddress}
+                  </div>
+                </div>
+              )}
 
               <div className="mt-2 text-xs text-slate-500">
                 {walletLocked

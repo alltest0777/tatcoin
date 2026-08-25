@@ -20,15 +20,39 @@ import { Link } from "react-router-dom";
 import { useWalletStore } from "../../stores/wallet-store";
 import { useQuery } from "@tanstack/react-query";
 import { formatTatBalance, getTatBalance } from "../../services/bank";
+import {
+  formatBitcoinBalance,
+  getBitcoinBalance,
+} from "../../services/bitcoin";
+import {
+  formatEthereumBalance,
+  getEthereumBalance,
+} from "../../services/ethereum";
 
 export default function Dashboard() {
   const address = useWalletStore((state) => state.address);
+  const btcAddress = useWalletStore((state) => state.btcAddress);
+  const ethAddress = useWalletStore((state) => state.ethAddress);
   const hasWallet = Boolean(address);
   const balanceQuery = useQuery({
     queryKey: ["tat-balance", address],
     queryFn: () => getTatBalance(address!),
     enabled: Boolean(address),
     refetchInterval: 10_000,
+  });
+
+  const bitcoinBalanceQuery = useQuery({
+    queryKey: ["bitcoin-balance", btcAddress],
+    queryFn: () => getBitcoinBalance(btcAddress!),
+    enabled: Boolean(btcAddress),
+    refetchInterval: 30_000,
+  });
+
+  const ethereumBalanceQuery = useQuery({
+    queryKey: ["ethereum-balance", ethAddress],
+    queryFn: () => getEthereumBalance(ethAddress!),
+    enabled: Boolean(ethAddress),
+    refetchInterval: 30_000,
   });
 
   const delegationsQuery = useQuery({
@@ -61,6 +85,16 @@ export default function Dashboard() {
 
   const formattedBalance =
     address && balanceQuery.data ? formatTatBalance(balanceQuery.data) : null;
+
+  const formattedBitcoinBalance =
+    btcAddress && bitcoinBalanceQuery.data !== undefined
+      ? formatBitcoinBalance(bitcoinBalanceQuery.data)
+      : null;
+
+  const formattedEthereumBalance =
+    ethAddress && ethereumBalanceQuery.data !== undefined
+      ? formatEthereumBalance(ethereumBalanceQuery.data)
+      : null;
 
   const delegatedUtat = (delegationsQuery.data ?? [])
     .reduce((total, item) => total + BigInt(item.amountUtat), 0n)
@@ -192,6 +226,8 @@ export default function Dashboard() {
         <div className="mt-6 grid gap-3">
           {ASSETS.map((asset) => {
             const isTat = asset.id === "tat";
+            const isBtc = asset.id === "btc";
+            const isEth = asset.id === "eth";
 
             return (
               <div
@@ -221,6 +257,58 @@ export default function Dashboard() {
 
                       <div className="mt-1 text-xs text-emerald-300">
                         Active
+                      </div>
+                    </>
+                  ) : isBtc ? (
+                    <>
+                      <div className="font-semibold text-white">
+                        {!btcAddress
+                          ? "—"
+                          : bitcoinBalanceQuery.isLoading
+                            ? "Loading..."
+                            : bitcoinBalanceQuery.isError
+                              ? "Unable to load"
+                              : `${formattedBitcoinBalance ?? "0.00000000"} BTC`}
+                      </div>
+
+                      <div
+                        className={
+                          bitcoinBalanceQuery.isError
+                            ? "mt-1 text-xs text-red-300"
+                            : "mt-1 text-xs text-emerald-300"
+                        }
+                      >
+                        {btcAddress
+                          ? bitcoinBalanceQuery.isError
+                            ? "Bitcoin API unavailable"
+                            : "Bitcoin Mainnet"
+                          : "Unlock wallet to derive address"}
+                      </div>
+                    </>
+                  ) : isEth ? (
+                    <>
+                      <div className="font-semibold text-white">
+                        {!ethAddress
+                          ? "—"
+                          : ethereumBalanceQuery.isLoading
+                            ? "Loading..."
+                            : ethereumBalanceQuery.isError
+                              ? "Unable to load"
+                              : `${formattedEthereumBalance ?? "0.000000000000000000"} ETH`}
+                      </div>
+
+                      <div
+                        className={
+                          ethereumBalanceQuery.isError
+                            ? "mt-1 text-xs text-red-300"
+                            : "mt-1 text-xs text-emerald-300"
+                        }
+                      >
+                        {ethAddress
+                          ? ethereumBalanceQuery.isError
+                            ? "Ethereum RPC unavailable"
+                            : "Ethereum Mainnet"
+                          : "Unlock wallet to derive address"}
                       </div>
                     </>
                   ) : (

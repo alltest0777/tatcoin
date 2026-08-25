@@ -4,6 +4,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { formatTatBalance, getTatBalance } from "../../services/bank";
 import { estimateSendFee, sendTat } from "../../services/send";
+import {
+  formatBitcoinBalance,
+  getBitcoinBalance,
+  getBitcoinFeeRates,
+  getBitcoinUtxos,
+} from "../../services/bitcoin";
 import { useWalletStore } from "../../stores/wallet-store";
 
 function tatToUtat(value: string): string {
@@ -38,7 +44,10 @@ export default function Send() {
 
   const address = useWalletStore((state) => state.address);
   const signer = useWalletStore((state) => state.signer);
+  const btcAddress = useWalletStore((state) => state.btcAddress);
   const walletLocked = Boolean(address && !signer);
+
+  const [asset, setAsset] = useState<"tat" | "btc">("tat");
 
   const balanceQuery = useQuery({
     queryKey: ["tat-balance", address],
@@ -47,8 +56,34 @@ export default function Send() {
     refetchInterval: 10_000,
   });
 
+  const bitcoinBalanceQuery = useQuery({
+    queryKey: ["bitcoin-balance", btcAddress],
+    queryFn: () => getBitcoinBalance(btcAddress!),
+    enabled: asset === "btc" && Boolean(btcAddress),
+    refetchInterval: 30_000,
+  });
+
+  const bitcoinUtxosQuery = useQuery({
+    queryKey: ["bitcoin-utxos", btcAddress],
+    queryFn: () => getBitcoinUtxos(btcAddress!),
+    enabled: asset === "btc" && Boolean(btcAddress),
+    refetchInterval: 30_000,
+  });
+
+  const bitcoinFeesQuery = useQuery({
+    queryKey: ["bitcoin-fee-rates"],
+    queryFn: getBitcoinFeeRates,
+    enabled: asset === "btc",
+    refetchInterval: 60_000,
+  });
+
   const availableBalance =
     address && balanceQuery.data ? formatTatBalance(balanceQuery.data) : null;
+
+  const availableBitcoinBalance =
+    btcAddress && bitcoinBalanceQuery.data !== undefined
+      ? formatBitcoinBalance(bitcoinBalanceQuery.data)
+      : null;
 
   const [toAddress, setToAddress] = useState("");
   const [amount, setAmount] = useState("");
@@ -272,30 +307,37 @@ export default function Send() {
     );
   }
 
-  if (walletLocked) {
+  if (walletLocked && asset === "tat") {
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-semibold text-white">Send TAT</h1>
-
           <p className="mt-1 text-sm text-slate-500">
             Send TatCoin to another address.
           </p>
         </div>
 
-        <div className="max-w-2xl rounded-3xl border border-amber-400/20 bg-amber-400/[0.05] p-6">
-          <div className="text-lg font-semibold text-amber-300">
-            Wallet locked
-          </div>
+        <div className="flex gap-2">
+          <button type="button" className="rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-slate-950">
+            TAT
+          </button>
+          <button
+            type="button"
+            onClick={() => setAsset("btc")}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+          >
+            BTC
+          </button>
+        </div>
 
+        <div className="max-w-2xl rounded-3xl border border-amber-400/20 bg-amber-400/[0.05] p-6">
+          <div className="text-lg font-semibold text-amber-300">Wallet locked</div>
           <p className="mt-2 text-sm leading-6 text-slate-400">
             Unlock your wallet before signing and sending transactions.
           </p>
-
           <div className="mt-4 break-all rounded-2xl border border-white/10 bg-black/20 p-4 font-mono text-sm text-slate-300">
             {address}
           </div>
-
           <Link
             to="/wallet"
             className="mt-5 inline-flex rounded-xl bg-amber-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-300"
@@ -307,6 +349,109 @@ export default function Send() {
     );
   }
 
+  if (asset === "btc") {
+    const utxos = bitcoinUtxosQuery.data ?? [];
+    const confirmedUtxos = utxos.filter((utxo) => utxo.status.confirmed);
+
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-white">Send BTC</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Bitcoin transaction preparation.
+          </p>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setAsset("tat")}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+          >
+            TAT
+          </button>
+          <button type="button" className="rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-slate-950">
+            BTC
+          </button>
+        </div>
+
+        {!btcAddress ? (
+          <div className="max-w-2xl rounded-3xl border border-amber-400/20 bg-amber-400/[0.05] p-6">
+            <div className="font-medium text-amber-300">Bitcoin address unavailable</div>
+            <p className="mt-2 text-sm text-slate-400">
+              Unlock the wallet once to derive your Bitcoin address.
+            </p>
+            <Link
+              to="/wallet"
+              className="mt-5 inline-flex rounded-xl bg-amber-400 px-5 py-3 text-sm font-semibold text-slate-950"
+            >
+              Open wallet
+            </Link>
+          </div>
+        ) : (
+          <div className="max-w-3xl rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+            <div className="text-xs uppercase tracking-wider text-slate-500">Bitcoin address</div>
+            <div className="mt-2 break-all font-mono text-sm text-amber-300">
+              {btcAddress}
+            </div>
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                <div className="text-xs uppercase tracking-wider text-slate-500">Available</div>
+                <div className="mt-2 text-lg font-semibold text-white">
+                  {bitcoinBalanceQuery.isLoading
+                    ? "Loading..."
+                    : bitcoinBalanceQuery.isError
+                      ? "Unable to load"
+                      : `${availableBitcoinBalance ?? "0.00000000"} BTC`}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                <div className="text-xs uppercase tracking-wider text-slate-500">UTXOs</div>
+                <div className="mt-2 text-lg font-semibold text-white">
+                  {bitcoinUtxosQuery.isLoading
+                    ? "Loading..."
+                    : bitcoinUtxosQuery.isError
+                      ? "Unable to load"
+                      : `${confirmedUtxos.length}`}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <div className="text-xs uppercase tracking-wider text-slate-500">Network fee rates</div>
+              {bitcoinFeesQuery.isLoading ? (
+                <div className="mt-3 text-sm text-slate-500">Loading fee estimates...</div>
+              ) : bitcoinFeesQuery.isError ? (
+                <div className="mt-3 text-sm text-red-300">Unable to load fee estimates.</div>
+              ) : bitcoinFeesQuery.data ? (
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  {[
+                    ["Fast", bitcoinFeesQuery.data.fast],
+                    ["Normal", bitcoinFeesQuery.data.normal],
+                    ["Economy", bitcoinFeesQuery.data.economy],
+                  ].map(([label, rate]) => (
+                    <div key={String(label)} className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                      <div className="text-sm text-slate-500">{label}</div>
+                      <div className="mt-2 font-semibold text-white">
+                        {Number(rate).toFixed(2)} sat/vB
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.05] p-4 text-sm leading-6 text-cyan-200">
+              BTC sending is not enabled yet. This screen currently reads Bitcoin Mainnet balance,
+              UTXOs and network fee estimates only.
+            </div>
+          </div>
+        )}
+      </div>
+    );
+ 
   if (confirming) {
     const reviewFee = estimatedFee ?? "0.000000";
     return (
@@ -409,8 +554,7 @@ export default function Send() {
     );
   }
 
-  if (walletLocked) {
-    return (
+  return (
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-semibold text-white">Send TAT</h1>
@@ -452,6 +596,19 @@ export default function Send() {
         <p className="mt-1 text-sm text-slate-500">
           Send TatCoin to another address.
         </p>
+      </div>
+
+      <div className="flex gap-2">
+        <button type="button" className="rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-slate-950">
+          TAT
+        </button>
+        <button
+          type="button"
+          onClick={() => setAsset("btc")}
+          className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+        >
+          BTC
+        </button>
       </div>
 
       <div className="max-w-2xl rounded-3xl border border-white/10 bg-white/[0.03] p-6">
