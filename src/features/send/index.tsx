@@ -11,6 +11,10 @@ import {
   getBitcoinUtxos,
 } from "../../services/bitcoin";
 import { useWalletStore } from "../../stores/wallet-store";
+import {
+  planBitcoinTransaction,
+  type BitcoinTransactionPlan,
+} from "../../lib/bitcoin-transaction";
 
 function tatToUtat(value: string): string {
   const normalized = value.trim();
@@ -38,6 +42,36 @@ function addTatValues(first: string, second: string): string {
 
   return utatToTat(total.toString());
 }
+
+function btcToSats(value: string): bigint {
+  const normalized = value.trim();
+
+  if (!/^\d+(\.\d{0,8})?$/.test(normalized)) {
+    throw new Error("Invalid Bitcoin amount");
+  }
+
+  const [whole, fraction = ""] = normalized.split(".");
+  const paddedFraction = fraction.padEnd(8, "0");
+
+  return (
+    BigInt(whole) * 100_000_000n +
+    BigInt(paddedFraction)
+  );
+}
+
+function satsToBtc(value: bigint): string {
+  const whole = value / 100_000_000n;
+  const fraction = value % 100_000_000n;
+
+  return `${whole}.${fraction
+    .toString()
+    .padStart(8, "0")}`;
+}
+
+type BitcoinFeeMode =
+  | "fast"
+  | "normal"
+  | "economy";
 
 export default function Send() {
   const queryClient = useQueryClient();
@@ -98,6 +132,15 @@ export default function Send() {
   const [estimatingFee, setEstimatingFee] = useState(false);
 
   const [confirming, setConfirming] = useState(false);
+
+  const [btcToAddress, setBtcToAddress] = useState("");
+  const [btcAmount, setBtcAmount] = useState("");
+  const [btcFeeMode, setBtcFeeMode] =
+    useState<BitcoinFeeMode>("normal");
+  const [btcPlan, setBtcPlan] =
+    useState<BitcoinTransactionPlan | null>(null);
+  const [btcError, setBtcError] = useState("");
+  const [btcReviewing, setBtcReviewing] = useState(false);
 
   const canReview =
     Boolean(address) &&
@@ -351,14 +394,161 @@ export default function Send() {
 
   if (asset === "btc") {
     const utxos = bitcoinUtxosQuery.data ?? [];
-    const confirmedUtxos = utxos.filter((utxo) => utxo.status.confirmed);
+    const confirmedUtxos =
+      utxos.filter((utxo) => utxo.status.confirmed);
+
+    const feeRates = bitcoinFeesQuery.data;
+
+    const selectedFeeRate =
+      feeRates
+        ? feeRates[btcFeeMode]
+        : null;
+
+    function prepareBitcoinReview() {
+      if (
+        !btcAddress ||
+        !selectedFeeRate
+      ) {
+        return;
+      }
+
+      try {
+        setBtcError("");
+
+        const plan =
+          planBitcoinTransaction({
+            fromAddress: btcAddress,
+            toAddress: btcToAddress.trim(),
+            amountSats:
+              btcToSats(btcAmount),
+            feeRate:
+              selectedFeeRate,
+            utxos,
+          });
+
+        setBtcPlan(plan);
+        setBtcReviewing(true);
+      } catch (err) {
+        setBtcPlan(null);
+        setBtcReviewing(false);
+        setBtcError(
+          err instanceof Error
+            ? err.message
+            : "Unable to prepare Bitcoin transaction",
+        );
+      }
+    }
+
+    if (btcReviewing && btcPlan) {
+      return (
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-semibold text-white">
+              Review BTC transaction
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Review the Bitcoin transaction plan. Nothing will be broadcast.
+            </p>
+          </div>
+
+          <div className="max-w-3xl rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+            <div className="space-y-5">
+              <div>
+                <div className="text-xs uppercase tracking-wider text-slate-500">
+                  From
+                </div>
+                <div className="mt-2 break-all font-mono text-sm text-amber-300">
+                  {btcAddress}
+                </div>
+              </div>
+
+              <div className="border-t border-white/10 pt-5">
+                <div className="text-xs uppercase tracking-wider text-slate-500">
+                  To
+                </div>
+                <div className="mt-2 break-all font-mono text-sm text-slate-300">
+                  {btcToAddress.trim()}
+                </div>
+              </div>
+
+              <div className="border-t border-white/10 pt-5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-500">Amount</span>
+                  <span className="font-medium text-white">
+                    {satsToBtc(btcPlan.amountSats)} BTC
+                  </span>
+                </div>
+              </div>
+
+              <div className="border-t border-white/10 pt-5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-500">Network fee</span>
+                  <span className="font-medium text-slate-200">
+                    {btcPlan.feeSats.toString()} sats
+                    {" · "}
+                    {satsToBtc(btcPlan.feeSats)} BTC
+                  </span>
+                </div>
+                <div className="mt-2 text-xs text-slate-500">
+                  {btcPlan.feeRate.toFixed(2)} sat/vB · estimated{" "}
+                  {btcPlan.estimatedVBytes} vB
+                </div>
+              </div>
+
+              <div className="border-t border-white/10 pt-5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-500">Change</span>
+                  <span className="font-medium text-slate-200">
+                    {satsToBtc(btcPlan.changeSats)} BTC
+                  </span>
+                </div>
+              </div>
+
+              <div className="border-t border-white/10 pt-5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-500">Inputs / outputs</span>
+                  <span className="font-medium text-slate-200">
+                    {btcPlan.inputCount} / {btcPlan.outputCount}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-7 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setBtcReviewing(false);
+                  setBtcError("");
+                }}
+                className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                Back
+              </button>
+
+              <button
+                type="button"
+                disabled
+                className="cursor-not-allowed rounded-xl bg-amber-400 px-5 py-3 text-sm font-semibold text-slate-950 opacity-50"
+              >
+                Signing not enabled yet
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.05] p-4 text-sm leading-6 text-cyan-200">
+              Preview only. No Bitcoin transaction is signed or broadcast from this screen.
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-semibold text-white">Send BTC</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Bitcoin transaction preparation.
+            Prepare a Bitcoin Mainnet transaction.
           </p>
         </div>
 
@@ -370,14 +560,19 @@ export default function Send() {
           >
             TAT
           </button>
-          <button type="button" className="rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-slate-950">
+          <button
+            type="button"
+            className="rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-slate-950"
+          >
             BTC
           </button>
         </div>
 
         {!btcAddress ? (
           <div className="max-w-2xl rounded-3xl border border-amber-400/20 bg-amber-400/[0.05] p-6">
-            <div className="font-medium text-amber-300">Bitcoin address unavailable</div>
+            <div className="font-medium text-amber-300">
+              Bitcoin address unavailable
+            </div>
             <p className="mt-2 text-sm text-slate-400">
               Unlock the wallet once to derive your Bitcoin address.
             </p>
@@ -390,14 +585,18 @@ export default function Send() {
           </div>
         ) : (
           <div className="max-w-3xl rounded-3xl border border-white/10 bg-white/[0.03] p-6">
-            <div className="text-xs uppercase tracking-wider text-slate-500">Bitcoin address</div>
+            <div className="text-xs uppercase tracking-wider text-slate-500">
+              Bitcoin address
+            </div>
             <div className="mt-2 break-all font-mono text-sm text-amber-300">
               {btcAddress}
             </div>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
-                <div className="text-xs uppercase tracking-wider text-slate-500">Available</div>
+                <div className="text-xs uppercase tracking-wider text-slate-500">
+                  Available
+                </div>
                 <div className="mt-2 text-lg font-semibold text-white">
                   {bitcoinBalanceQuery.isLoading
                     ? "Loading..."
@@ -408,7 +607,9 @@ export default function Send() {
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
-                <div className="text-xs uppercase tracking-wider text-slate-500">UTXOs</div>
+                <div className="text-xs uppercase tracking-wider text-slate-500">
+                  Confirmed UTXOs
+                </div>
                 <div className="mt-2 text-lg font-semibold text-white">
                   {bitcoinUtxosQuery.isLoading
                     ? "Loading..."
@@ -420,38 +621,136 @@ export default function Send() {
             </div>
 
             <div className="mt-6">
-              <div className="text-xs uppercase tracking-wider text-slate-500">Network fee rates</div>
+              <label className="text-sm font-medium text-slate-300">
+                Recipient address
+              </label>
+              <input
+                value={btcToAddress}
+                onChange={(event) => {
+                  setBtcToAddress(event.target.value);
+                  setBtcPlan(null);
+                  setBtcError("");
+                }}
+                placeholder="bc1..."
+                spellCheck={false}
+                autoComplete="off"
+                className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 font-mono text-sm text-white outline-none transition placeholder:text-slate-700 focus:border-amber-400/40"
+              />
+            </div>
+
+            <div className="mt-5">
+              <div className="flex items-center justify-between gap-4">
+                <label className="text-sm font-medium text-slate-300">
+                  Amount
+                </label>
+                <span className="text-xs text-slate-500">
+                  Available:{" "}
+                  <span className="font-medium text-slate-300">
+                    {availableBitcoinBalance ?? "0.00000000"} BTC
+                  </span>
+                </span>
+              </div>
+
+              <div className="relative mt-2">
+                <input
+                  value={btcAmount}
+                  onChange={(event) => {
+                    setBtcAmount(event.target.value);
+                    setBtcPlan(null);
+                    setBtcError("");
+                  }}
+                  placeholder="0.00000000"
+                  inputMode="decimal"
+                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 pr-16 text-white outline-none transition placeholder:text-slate-700 focus:border-amber-400/40"
+                />
+                <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm font-medium text-amber-300">
+                  BTC
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <div className="text-xs uppercase tracking-wider text-slate-500">
+                Network fee
+              </div>
+
               {bitcoinFeesQuery.isLoading ? (
-                <div className="mt-3 text-sm text-slate-500">Loading fee estimates...</div>
+                <div className="mt-3 text-sm text-slate-500">
+                  Loading fee estimates...
+                </div>
               ) : bitcoinFeesQuery.isError ? (
-                <div className="mt-3 text-sm text-red-300">Unable to load fee estimates.</div>
-              ) : bitcoinFeesQuery.data ? (
+                <div className="mt-3 text-sm text-red-300">
+                  Unable to load fee estimates.
+                </div>
+              ) : feeRates ? (
                 <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                  {[
-                    ["Fast", bitcoinFeesQuery.data.fast],
-                    ["Normal", bitcoinFeesQuery.data.normal],
-                    ["Economy", bitcoinFeesQuery.data.economy],
-                  ].map(([label, rate]) => (
-                    <div key={String(label)} className="rounded-2xl border border-white/10 bg-black/10 p-4">
-                      <div className="text-sm text-slate-500">{label}</div>
-                      <div className="mt-2 font-semibold text-white">
-                        {Number(rate).toFixed(2)} sat/vB
-                      </div>
-                    </div>
-                  ))}
+                  {(
+                    [
+                      ["fast", "Fast", feeRates.fast],
+                      ["normal", "Normal", feeRates.normal],
+                      ["economy", "Economy", feeRates.economy],
+                    ] as const
+                  ).map(([mode, label, rate]) => {
+                    const active =
+                      btcFeeMode === mode;
+
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => {
+                          setBtcFeeMode(mode);
+                          setBtcPlan(null);
+                          setBtcError("");
+                        }}
+                        className={
+                          active
+                            ? "rounded-2xl border border-amber-400/40 bg-amber-400/[0.08] p-4 text-left"
+                            : "rounded-2xl border border-white/10 bg-black/10 p-4 text-left transition hover:bg-white/5"
+                        }
+                      >
+                        <div className={active ? "text-sm text-amber-300" : "text-sm text-slate-500"}>
+                          {label}
+                        </div>
+                        <div className="mt-2 font-semibold text-white">
+                          {Number(rate).toFixed(2)} sat/vB
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               ) : null}
             </div>
 
-            <div className="mt-6 rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.05] p-4 text-sm leading-6 text-cyan-200">
-              BTC sending is not enabled yet. This screen currently reads Bitcoin Mainnet balance,
-              UTXOs and network fee estimates only.
+            <button
+              type="button"
+              disabled={
+                !btcToAddress.trim() ||
+                !btcAmount.trim() ||
+                !selectedFeeRate ||
+                bitcoinUtxosQuery.isLoading
+              }
+              onClick={prepareBitcoinReview}
+              className="mt-6 w-full rounded-xl bg-amber-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Review BTC transaction
+            </button>
+
+            {btcError && (
+              <div className="mt-4 rounded-xl border border-red-400/20 bg-red-400/[0.05] p-3 text-sm text-red-300">
+                {btcError}
+              </div>
+            )}
+
+            <div className="mt-5 rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.05] p-4 text-sm leading-6 text-cyan-200">
+              BTC signing and broadcast are still disabled. Review only calculates UTXO selection, fee and change.
             </div>
           </div>
         )}
       </div>
     );
- 
+  }
+
   if (confirming) {
     const reviewFee = estimatedFee ?? "0.000000";
     return (
@@ -549,40 +848,6 @@ export default function Send() {
               {error}
             </div>
           )}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-white">Send TAT</h1>
-
-          <p className="mt-1 text-sm text-slate-500">
-            Send TatCoin to another address.
-          </p>
-        </div>
-
-        <div className="max-w-2xl rounded-3xl border border-amber-400/20 bg-amber-400/[0.05] p-6">
-          <div className="text-lg font-semibold text-amber-300">
-            Wallet locked
-          </div>
-
-          <p className="mt-2 text-sm leading-6 text-slate-400">
-            Unlock your wallet before signing and sending transactions.
-          </p>
-
-          <div className="mt-4 break-all rounded-2xl border border-white/10 bg-black/20 p-4 font-mono text-sm text-slate-300">
-            {address}
-          </div>
-
-          <Link
-            to="/wallet"
-            className="mt-5 inline-flex rounded-xl bg-amber-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-300"
-          >
-            Unlock wallet
-          </Link>
         </div>
       </div>
     );
