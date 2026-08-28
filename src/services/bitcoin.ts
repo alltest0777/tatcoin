@@ -155,3 +155,28 @@ Promise<BitcoinFeeRates> {
     economy: getRate(144),
   };
 }
+
+export async function broadcastBitcoinTransaction(
+  rawTxHex: string,
+): Promise<string> {
+  const response = await fetch(
+    "https://blockstream.info/api/tx",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain",
+      },
+      body: rawTxHex.trim(),
+    },
+  );
+
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(
+      text || "Failed to broadcast Bitcoin transaction",
+    );
+  }
+
+  return text.trim();
+}

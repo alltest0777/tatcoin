@@ -9,6 +9,7 @@ import {
   getBitcoinBalance,
   getBitcoinFeeRates,
   getBitcoinUtxos,
+  broadcastBitcoinTransaction,
 } from "../../services/bitcoin";
 import { useWalletStore } from "../../stores/wallet-store";
 import {
@@ -48,7 +49,7 @@ function addTatValues(first: string, second: string): string {
 }
 
 function btcToSats(value: string): bigint {
-  const normalized = value.trim();
+  const normalized = value.trim().replace(",", ".");
 
   if (!/^\d+(\.\d{0,8})?$/.test(normalized)) {
     throw new Error("Invalid Bitcoin amount");
@@ -57,25 +58,17 @@ function btcToSats(value: string): bigint {
   const [whole, fraction = ""] = normalized.split(".");
   const paddedFraction = fraction.padEnd(8, "0");
 
-  return (
-    BigInt(whole) * 100_000_000n +
-    BigInt(paddedFraction)
-  );
+  return BigInt(whole) * 100_000_000n + BigInt(paddedFraction);
 }
 
 function satsToBtc(value: bigint): string {
   const whole = value / 100_000_000n;
   const fraction = value % 100_000_000n;
 
-  return `${whole}.${fraction
-    .toString()
-    .padStart(8, "0")}`;
+  return `${whole}.${fraction.toString().padStart(8, "0")}`;
 }
 
-type BitcoinFeeMode =
-  | "fast"
-  | "normal"
-  | "economy";
+type BitcoinFeeMode = "fast" | "normal" | "economy";
 
 export default function Send() {
   const queryClient = useQueryClient();
@@ -139,16 +132,17 @@ export default function Send() {
 
   const [btcToAddress, setBtcToAddress] = useState("");
   const [btcAmount, setBtcAmount] = useState("");
-  const [btcFeeMode, setBtcFeeMode] =
-    useState<BitcoinFeeMode>("normal");
-  const [btcPlan, setBtcPlan] =
-    useState<BitcoinTransactionPlan | null>(null);
+  const [btcFeeMode, setBtcFeeMode] = useState<BitcoinFeeMode>("normal");
+  const [btcPlan, setBtcPlan] = useState<BitcoinTransactionPlan | null>(null);
   const [btcError, setBtcError] = useState("");
   const [btcReviewing, setBtcReviewing] = useState(false);
   const [btcMnemonic, setBtcMnemonic] = useState("");
   const [btcSigning, setBtcSigning] = useState(false);
-  const [btcSigned, setBtcSigned] =
-    useState<BuiltBitcoinTransaction | null>(null);  
+  const [btcSigned, setBtcSigned] = useState<BuiltBitcoinTransaction | null>(
+    null,
+  );
+  const [btcBroadcasting, setBtcBroadcasting] = useState(false);
+  const [btcBroadcastTxid, setBtcBroadcastTxid] = useState<string | null>(null);
 
   const canReview =
     Boolean(address) &&
@@ -369,7 +363,10 @@ export default function Send() {
         </div>
 
         <div className="flex gap-2">
-          <button type="button" className="rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-slate-950">
+          <button
+            type="button"
+            className="rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-slate-950"
+          >
             TAT
           </button>
           <button
@@ -382,7 +379,9 @@ export default function Send() {
         </div>
 
         <div className="max-w-2xl rounded-3xl border border-amber-400/20 bg-amber-400/[0.05] p-6">
-          <div className="text-lg font-semibold text-amber-300">Wallet locked</div>
+          <div className="text-lg font-semibold text-amber-300">
+            Wallet locked
+          </div>
           <p className="mt-2 text-sm leading-6 text-slate-400">
             Unlock your wallet before signing and sending transactions.
           </p>
@@ -402,37 +401,27 @@ export default function Send() {
 
   if (asset === "btc") {
     const utxos = bitcoinUtxosQuery.data ?? [];
-    const confirmedUtxos =
-      utxos.filter((utxo) => utxo.status.confirmed);
+    const confirmedUtxos = utxos.filter((utxo) => utxo.status.confirmed);
 
     const feeRates = bitcoinFeesQuery.data;
 
-    const selectedFeeRate =
-      feeRates
-        ? feeRates[btcFeeMode]
-        : null;
+    const selectedFeeRate = feeRates ? feeRates[btcFeeMode] : null;
 
     function prepareBitcoinReview() {
-      if (
-        !btcAddress ||
-        !selectedFeeRate
-      ) {
+      if (!btcAddress || !selectedFeeRate) {
         return;
       }
 
       try {
         setBtcError("");
 
-        const plan =
-          planBitcoinTransaction({
-            fromAddress: btcAddress,
-            toAddress: btcToAddress.trim(),
-            amountSats:
-              btcToSats(btcAmount),
-            feeRate:
-              selectedFeeRate,
-            utxos,
-          });
+        const plan = planBitcoinTransaction({
+          fromAddress: btcAddress,
+          toAddress: btcToAddress.trim(),
+          amountSats: btcToSats(btcAmount),
+          feeRate: selectedFeeRate,
+          utxos,
+        });
 
         setBtcPlan(plan);
         setBtcSigned(null);
@@ -459,22 +448,20 @@ export default function Send() {
         setBtcError("");
         setBtcSigned(null);
 
-        const mnemonic =
-          btcMnemonic.trim().replace(/\s+/g, " ");
+        const mnemonic = btcMnemonic.trim().replace(/\s+/g, " ");
 
         if (!mnemonic) {
           throw new Error("Enter your recovery phrase");
         }
 
-        const signed =
-          signBitcoinTransaction({
-            mnemonic,
-            expectedFromAddress: btcAddress,
-            toAddress: btcToAddress.trim(),
-            amountSats: btcPlan.amountSats,
-            feeRate: selectedFeeRate,
-            utxos,
-          });
+        const signed = signBitcoinTransaction({
+          mnemonic,
+          expectedFromAddress: btcAddress,
+          toAddress: btcToAddress.trim(),
+          amountSats: btcPlan.amountSats,
+          feeRate: selectedFeeRate,
+          utxos,
+        });
 
         setBtcSigned(signed);
         setBtcMnemonic("");
@@ -486,6 +473,38 @@ export default function Send() {
         );
       } finally {
         setBtcSigning(false);
+      }
+    }
+
+    async function handleBitcoinBroadcast() {
+      if (!btcSigned) {
+        return;
+      }
+
+      const confirmed = window.confirm(
+        "Broadcast this signed transaction to Bitcoin Mainnet?\n\n" +
+          "This action is irreversible.",
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        setBtcBroadcasting(true);
+        setBtcError("");
+
+        const txid = await broadcastBitcoinTransaction(btcSigned.rawTxHex);
+
+        setBtcBroadcastTxid(txid);
+      } catch (err) {
+        setBtcError(
+          err instanceof Error
+            ? err.message
+            : "Failed to broadcast Bitcoin transaction",
+        );
+      } finally {
+        setBtcBroadcasting(false);
       }
     }
 
@@ -556,7 +575,9 @@ export default function Send() {
 
               <div className="border-t border-white/10 pt-5">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-500">Inputs / outputs</span>
+                  <span className="text-sm text-slate-500">
+                    Inputs / outputs
+                  </span>
                   <span className="font-medium text-slate-200">
                     {btcPlan.inputCount} / {btcPlan.outputCount}
                   </span>
@@ -570,7 +591,8 @@ export default function Send() {
                   Recovery phrase
                 </label>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Used only in this browser to derive the Bitcoin private key and sign this transaction locally.
+                  Used only in this browser to derive the Bitcoin private key
+                  and sign this transaction locally.
                 </p>
                 <textarea
                   value={btcMnemonic}
@@ -585,7 +607,8 @@ export default function Send() {
                   className="mt-3 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-700 focus:border-amber-400/40"
                 />
                 <div className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/[0.05] p-4 text-sm leading-6 text-amber-100">
-                  The phrase must derive the Bitcoin address shown above. It is cleared from this form immediately after successful signing.
+                  The phrase must derive the Bitcoin address shown above. It is
+                  cleared from this form immediately after successful signing.
                 </div>
               </div>
             )}
@@ -628,7 +651,19 @@ export default function Send() {
                   {btcSigned.rawTxHex}
                 </div>
                 <div className="mt-4 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.05] p-3 text-sm leading-6 text-cyan-200">
-                  The transaction is signed but has not been broadcast to Bitcoin Mainnet.
+                  {btcBroadcastTxid ? (
+                    <>
+                      Transaction broadcast successfully to Bitcoin Mainnet.
+                      <div className="mt-2 break-all font-mono text-xs text-emerald-200">
+                        TXID: {btcBroadcastTxid}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      The transaction is signed but has not been broadcast to
+                      Bitcoin Mainnet.
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -641,6 +676,7 @@ export default function Send() {
                   setBtcReviewing(false);
                   setBtcSigned(null);
                   setBtcMnemonic("");
+		  setBtcBroadcastTxid(null);
                   setBtcError("");
                 }}
                 className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
@@ -660,10 +696,15 @@ export default function Send() {
               ) : (
                 <button
                   type="button"
-                  disabled
-                  className="cursor-not-allowed rounded-xl bg-emerald-400 px-5 py-3 text-sm font-semibold text-slate-950 opacity-50"
+                  disabled={btcBroadcasting || Boolean(btcBroadcastTxid)}
+                  onClick={handleBitcoinBroadcast}
+                  className="rounded-xl bg-emerald-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Broadcast not enabled
+                  {btcBroadcastTxid
+                    ? "Broadcasted"
+                    : btcBroadcasting
+                      ? "Broadcasting..."
+                      : "Broadcast to Bitcoin Mainnet"}
                 </button>
               )}
             </div>
@@ -820,8 +861,7 @@ export default function Send() {
                       ["economy", "Economy", feeRates.economy],
                     ] as const
                   ).map(([mode, label, rate]) => {
-                    const active =
-                      btcFeeMode === mode;
+                    const active = btcFeeMode === mode;
 
                     return (
                       <button
@@ -838,7 +878,13 @@ export default function Send() {
                             : "rounded-2xl border border-white/10 bg-black/10 p-4 text-left transition hover:bg-white/5"
                         }
                       >
-                        <div className={active ? "text-sm text-amber-300" : "text-sm text-slate-500"}>
+                        <div
+                          className={
+                            active
+                              ? "text-sm text-amber-300"
+                              : "text-sm text-slate-500"
+                          }
+                        >
                           {label}
                         </div>
                         <div className="mt-2 font-semibold text-white">
@@ -871,9 +917,10 @@ export default function Send() {
               </div>
             )}
 
-	    <div className="mt-5 rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.05] p-4 text-sm leading-6 text-cyan-200">
-	       BTC transactions are signed locally in your browser. Broadcast to Bitcoin Mainnet is not enabled yet.
-	    </div>
+            <div className="mt-5 rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.05] p-4 text-sm leading-6 text-cyan-200">
+              BTC transactions are signed locally in your browser. Broadcast to
+              Bitcoin Mainnet is not enabled yet.
+            </div>
           </div>
         )}
       </div>
@@ -993,7 +1040,10 @@ export default function Send() {
       </div>
 
       <div className="flex gap-2">
-        <button type="button" className="rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-slate-950">
+        <button
+          type="button"
+          className="rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-slate-950"
+        >
           TAT
         </button>
         <button

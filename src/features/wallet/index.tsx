@@ -242,11 +242,17 @@ export default function Wallet() {
       <div className="space-y-6">
         <button
           type="button"
+          disabled={Boolean(mnemonic)}
           onClick={() => {
             setMode("choose");
             setError("");
           }}
-          className="text-sm text-slate-400 transition hover:text-white"
+          className="text-sm text-slate-400 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+          title={
+            mnemonic
+              ? "Save your recovery phrase before leaving this screen"
+              : undefined
+          }
         >
           ← Back to wallet
         </button>
@@ -330,6 +336,19 @@ export default function Wallet() {
                 Save this recovery phrase securely before continuing. Anyone
                 with this phrase can control the wallet.
               </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMnemonic("");
+                  setAddress("");
+                  setMode("choose");
+                  setError("");
+                }}
+                className="w-full rounded-xl bg-emerald-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300"
+              >
+                I've saved my recovery phrase
+              </button>
             </div>
           )}
 
@@ -408,6 +427,7 @@ export default function Wallet() {
                   await deriveMultichainAddresses(importMnemonic);
 
                 setMultichainAddresses(multichain.btc, multichain.eth);
+                setImportMnemonic("");
               } catch {
                 setError("Invalid recovery phrase");
               } finally {
