@@ -16,6 +16,10 @@ import {
   type BitcoinTransactionPlan,
 } from "../../lib/bitcoin-transaction";
 
+import { signBitcoinTransaction } from "../../lib/bitcoin-wallet";
+
+import type { BuiltBitcoinTransaction } from "../../lib/bitcoin-transaction";
+
 function tatToUtat(value: string): string {
   const normalized = value.trim();
 
@@ -141,6 +145,10 @@ export default function Send() {
     useState<BitcoinTransactionPlan | null>(null);
   const [btcError, setBtcError] = useState("");
   const [btcReviewing, setBtcReviewing] = useState(false);
+  const [btcMnemonic, setBtcMnemonic] = useState("");
+  const [btcSigning, setBtcSigning] = useState(false);
+  const [btcSigned, setBtcSigned] =
+    useState<BuiltBitcoinTransaction | null>(null);  
 
   const canReview =
     Boolean(address) &&
@@ -427,6 +435,8 @@ export default function Send() {
           });
 
         setBtcPlan(plan);
+        setBtcSigned(null);
+        setBtcMnemonic("");
         setBtcReviewing(true);
       } catch (err) {
         setBtcPlan(null);
@@ -436,6 +446,46 @@ export default function Send() {
             ? err.message
             : "Unable to prepare Bitcoin transaction",
         );
+      }
+    }
+
+    function handleBitcoinSign() {
+      if (!btcAddress || !selectedFeeRate || !btcPlan) {
+        return;
+      }
+
+      try {
+        setBtcSigning(true);
+        setBtcError("");
+        setBtcSigned(null);
+
+        const mnemonic =
+          btcMnemonic.trim().replace(/\s+/g, " ");
+
+        if (!mnemonic) {
+          throw new Error("Enter your recovery phrase");
+        }
+
+        const signed =
+          signBitcoinTransaction({
+            mnemonic,
+            expectedFromAddress: btcAddress,
+            toAddress: btcToAddress.trim(),
+            amountSats: btcPlan.amountSats,
+            feeRate: selectedFeeRate,
+            utxos,
+          });
+
+        setBtcSigned(signed);
+        setBtcMnemonic("");
+      } catch (err) {
+        setBtcError(
+          err instanceof Error
+            ? err.message
+            : "Failed to sign Bitcoin transaction",
+        );
+      } finally {
+        setBtcSigning(false);
       }
     }
 
@@ -514,29 +564,108 @@ export default function Send() {
               </div>
             </div>
 
+            {!btcSigned && (
+              <div className="mt-7 border-t border-white/10 pt-6">
+                <label className="text-sm font-medium text-slate-300">
+                  Recovery phrase
+                </label>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Used only in this browser to derive the Bitcoin private key and sign this transaction locally.
+                </p>
+                <textarea
+                  value={btcMnemonic}
+                  onChange={(event) => {
+                    setBtcMnemonic(event.target.value);
+                    setBtcError("");
+                  }}
+                  rows={3}
+                  placeholder="Enter your recovery phrase"
+                  spellCheck={false}
+                  autoComplete="off"
+                  className="mt-3 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-700 focus:border-amber-400/40"
+                />
+                <div className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/[0.05] p-4 text-sm leading-6 text-amber-100">
+                  The phrase must derive the Bitcoin address shown above. It is cleared from this form immediately after successful signing.
+                </div>
+              </div>
+            )}
+
+            {btcError && (
+              <div className="mt-4 rounded-xl border border-red-400/20 bg-red-400/[0.05] p-3 text-sm text-red-300">
+                {btcError}
+              </div>
+            )}
+
+            {btcSigned && (
+              <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-5">
+                <div className="text-sm font-semibold text-emerald-200">
+                  Signed locally
+                </div>
+                <div className="mt-4 text-xs uppercase tracking-wider text-slate-500">
+                  TXID
+                </div>
+                <div className="mt-2 break-all font-mono text-xs text-emerald-300">
+                  {btcSigned.txid}
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-white/10 bg-black/10 p-3">
+                    <div className="text-xs text-slate-500">Fee</div>
+                    <div className="mt-1 text-sm font-medium text-white">
+                      {btcSigned.feeSats.toString()} sats
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-black/10 p-3">
+                    <div className="text-xs text-slate-500">Change</div>
+                    <div className="mt-1 text-sm font-medium text-white">
+                      {satsToBtc(btcSigned.changeSats)} BTC
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 text-xs uppercase tracking-wider text-slate-500">
+                  Raw transaction
+                </div>
+                <div className="mt-2 max-h-44 overflow-auto break-all rounded-xl border border-white/10 bg-black/20 p-3 font-mono text-xs leading-5 text-slate-300">
+                  {btcSigned.rawTxHex}
+                </div>
+                <div className="mt-4 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.05] p-3 text-sm leading-6 text-cyan-200">
+                  The transaction is signed but has not been broadcast to Bitcoin Mainnet.
+                </div>
+              </div>
+            )}
+
             <div className="mt-7 grid gap-3 sm:grid-cols-2">
               <button
                 type="button"
+                disabled={btcSigning}
                 onClick={() => {
                   setBtcReviewing(false);
+                  setBtcSigned(null);
+                  setBtcMnemonic("");
                   setBtcError("");
                 }}
-                className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Back
               </button>
 
-              <button
-                type="button"
-                disabled
-                className="cursor-not-allowed rounded-xl bg-amber-400 px-5 py-3 text-sm font-semibold text-slate-950 opacity-50"
-              >
-                Signing not enabled yet
-              </button>
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.05] p-4 text-sm leading-6 text-cyan-200">
-              Preview only. No Bitcoin transaction is signed or broadcast from this screen.
+              {!btcSigned ? (
+                <button
+                  type="button"
+                  disabled={btcSigning || !btcMnemonic.trim()}
+                  onClick={handleBitcoinSign}
+                  className="rounded-xl bg-amber-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {btcSigning ? "Signing locally..." : "Sign locally"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="cursor-not-allowed rounded-xl bg-emerald-400 px-5 py-3 text-sm font-semibold text-slate-950 opacity-50"
+                >
+                  Broadcast not enabled
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -742,9 +871,9 @@ export default function Send() {
               </div>
             )}
 
-            <div className="mt-5 rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.05] p-4 text-sm leading-6 text-cyan-200">
-              BTC signing and broadcast are still disabled. Review only calculates UTXO selection, fee and change.
-            </div>
+	    <div className="mt-5 rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.05] p-4 text-sm leading-6 text-cyan-200">
+	       BTC transactions are signed locally in your browser. Broadcast to Bitcoin Mainnet is not enabled yet.
+	    </div>
           </div>
         )}
       </div>

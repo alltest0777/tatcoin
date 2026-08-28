@@ -62,7 +62,18 @@ function assertBitcoinAddress(
   address: string,
   label: string,
 ): void {
-  if (!/^bc1[a-z0-9]+$/i.test(address.trim())) {
+  const normalized =
+    address.trim();
+
+  try {
+    const testTransaction =
+      new btc.Transaction();
+
+    testTransaction.addOutputAddress(
+      normalized,
+      1n,
+    );
+  } catch {
     throw new Error(
       `Invalid Bitcoin ${label} address`,
     );
