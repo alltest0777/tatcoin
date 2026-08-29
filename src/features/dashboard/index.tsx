@@ -88,7 +88,7 @@ export default function Dashboard() {
 
   const formattedBitcoinBalance =
     btcAddress && bitcoinBalanceQuery.data !== undefined
-      ? formatBitcoinBalance(bitcoinBalanceQuery.data)
+      ? formatBitcoinBalance(bitcoinBalanceQuery.data.total)
       : null;
 
   const formattedEthereumBalance =

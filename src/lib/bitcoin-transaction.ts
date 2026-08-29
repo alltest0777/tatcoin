@@ -80,7 +80,7 @@ function assertBitcoinAddress(
   }
 }
 
-function estimateP2wpkhVBytes(
+export function estimateP2wpkhVBytes(
   inputCount: number,
   outputCount: number,
 ): number {
@@ -101,7 +101,7 @@ function estimateP2wpkhVBytes(
   );
 }
 
-function calculateFee(
+export function calculateBitcoinFee(
   inputCount: number,
   outputCount: number,
   feeRate: number,
@@ -195,7 +195,7 @@ export function planBitcoinTransaction(
      * Preferred case: recipient + change.
      */
     const feeWithChange =
-      calculateFee(
+      calculateBitcoinFee(
         selected.length,
         2,
         feeRate,
@@ -232,7 +232,7 @@ export function planBitcoinTransaction(
      * change output and add that remainder to fee.
      */
     const minimumOneOutputFee =
-      calculateFee(
+      calculateBitcoinFee(
         selected.length,
         1,
         feeRate,

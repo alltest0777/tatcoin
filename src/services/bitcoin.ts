@@ -8,12 +8,18 @@ export interface BitcoinAddressResponse {
   mempool_stats: BitcoinAddressStats;
 }
 
+export interface BitcoinBalance {
+  confirmed: string;
+  unconfirmed: string;
+  total: string;
+}
+
 const BITCOIN_API_URL =
   "https://blockstream.info/api";
 
 export async function getBitcoinBalance(
   address: string,
-): Promise<string> {
+): Promise<BitcoinBalance> {
   if (!/^bc1[a-z0-9]+$/i.test(address)) {
     throw new Error("Invalid Bitcoin address");
   }
@@ -35,11 +41,15 @@ export async function getBitcoinBalance(
     BigInt(data.chain_stats.funded_txo_sum) -
     BigInt(data.chain_stats.spent_txo_sum);
 
-  const mempool =
+  const unconfirmed =
     BigInt(data.mempool_stats.funded_txo_sum) -
     BigInt(data.mempool_stats.spent_txo_sum);
 
-  return (confirmed + mempool).toString();
+  return {
+    confirmed: confirmed.toString(),
+    unconfirmed: unconfirmed.toString(),
+    total: (confirmed + unconfirmed).toString(),
+  };
 }
 
 export function formatBitcoinBalance(

@@ -13,6 +13,7 @@ import {
 } from "../../services/bitcoin";
 import { useWalletStore } from "../../stores/wallet-store";
 import {
+  calculateBitcoinFee,
   planBitcoinTransaction,
   type BitcoinTransactionPlan,
 } from "../../lib/bitcoin-transaction";
@@ -113,7 +114,17 @@ export default function Send() {
 
   const availableBitcoinBalance =
     btcAddress && bitcoinBalanceQuery.data !== undefined
-      ? formatBitcoinBalance(bitcoinBalanceQuery.data)
+      ? formatBitcoinBalance(bitcoinBalanceQuery.data.total)
+      : null;
+
+  const confirmedBitcoinBalance =
+    btcAddress && bitcoinBalanceQuery.data !== undefined
+      ? formatBitcoinBalance(bitcoinBalanceQuery.data.confirmed)
+      : null;
+
+  const unconfirmedBitcoinBalance =
+    btcAddress && bitcoinBalanceQuery.data !== undefined
+      ? formatBitcoinBalance(bitcoinBalanceQuery.data.unconfirmed)
       : null;
 
   const [toAddress, setToAddress] = useState("");
@@ -407,6 +418,52 @@ export default function Send() {
 
     const selectedFeeRate = feeRates ? feeRates[btcFeeMode] : null;
 
+    function handleBitcoinMax() {
+      if (!selectedFeeRate) {
+        setBtcError("Bitcoin fee rate is not available yet");
+        return;
+      }
+
+      try {
+        setBtcError("");
+        setBtcPlan(null);
+        setBtcSigned(null);
+
+        if (confirmedUtxos.length === 0) {
+          throw new Error("No confirmed Bitcoin funds available");
+        }
+
+        const totalInput = confirmedUtxos.reduce(
+          (sum, utxo) => sum + BigInt(utxo.value),
+          0n,
+        );
+
+        // P2WPKH transaction with all confirmed inputs
+        // and one recipient output (no change output).
+	const fee = calculateBitcoinFee(
+	  confirmedUtxos.length,
+	  1,
+	  selectedFeeRate,
+	);
+
+        const maxAmount = totalInput - fee;
+
+        if (maxAmount <= 0n) {
+          throw new Error(
+            "Bitcoin balance is too small to cover the network fee",
+          );
+        }
+
+        setBtcAmount(satsToBtc(maxAmount));
+      } catch (err) {
+        setBtcError(
+          err instanceof Error
+            ? err.message
+            : "Unable to calculate maximum Bitcoin amount",
+        );
+      }
+    }
+
     function prepareBitcoinReview() {
       if (!btcAddress || !selectedFeeRate) {
         return;
@@ -496,7 +553,21 @@ export default function Send() {
 
         const txid = await broadcastBitcoinTransaction(btcSigned.rawTxHex);
 
+        if (txid !== btcSigned.txid) {
+          throw new Error(
+            "Broadcast TXID does not match the locally signed transaction",
+          );
+        }
+
         setBtcBroadcastTxid(txid);
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: ["bitcoin-balance", btcAddress],
+          }),
+          queryClient.invalidateQueries({
+            queryKey: ["bitcoin-utxos", btcAddress],
+          }),
+        ]);
       } catch (err) {
         setBtcError(
           err instanceof Error
@@ -676,7 +747,7 @@ export default function Send() {
                   setBtcReviewing(false);
                   setBtcSigned(null);
                   setBtcMnemonic("");
-		  setBtcBroadcastTxid(null);
+                  setBtcBroadcastTxid(null);
                   setBtcError("");
                 }}
                 className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
@@ -765,7 +836,7 @@ export default function Send() {
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
                 <div className="text-xs uppercase tracking-wider text-slate-500">
-                  Available
+                  Total balance
                 </div>
                 <div className="mt-2 text-lg font-semibold text-white">
                   {bitcoinBalanceQuery.isLoading
@@ -773,6 +844,32 @@ export default function Send() {
                     : bitcoinBalanceQuery.isError
                       ? "Unable to load"
                       : `${availableBitcoinBalance ?? "0.00000000"} BTC`}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                <div className="text-xs uppercase tracking-wider text-slate-500">
+                  Available to send
+                </div>
+                <div className="mt-2 text-lg font-semibold text-white">
+                  {bitcoinBalanceQuery.isLoading
+                    ? "Loading..."
+                    : bitcoinBalanceQuery.isError
+                      ? "Unable to load"
+                      : `${confirmedBitcoinBalance ?? "0.00000000"} BTC`}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                <div className="text-xs uppercase tracking-wider text-slate-500">
+                  Pending
+                </div>
+                <div className="mt-2 text-lg font-semibold text-white">
+                  {bitcoinBalanceQuery.isLoading
+                    ? "Loading..."
+                    : bitcoinBalanceQuery.isError
+                      ? "Unable to load"
+                      : `${unconfirmedBitcoinBalance ?? "0.00000000"} BTC`}
                 </div>
               </div>
 
@@ -789,6 +886,14 @@ export default function Send() {
                 </div>
               </div>
             </div>
+
+            {bitcoinBalanceQuery.data &&
+              BigInt(bitcoinBalanceQuery.data.unconfirmed) !== 0n && (
+                <div className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/[0.05] p-4 text-sm leading-6 text-amber-200">
+                  Some Bitcoin funds are still pending confirmation and are not
+                  yet available to send.
+                </div>
+              )}
 
             <div className="mt-6">
               <label className="text-sm font-medium text-slate-300">
@@ -813,12 +918,23 @@ export default function Send() {
                 <label className="text-sm font-medium text-slate-300">
                   Amount
                 </label>
-                <span className="text-xs text-slate-500">
-                  Available:{" "}
-                  <span className="font-medium text-slate-300">
-                    {availableBitcoinBalance ?? "0.00000000"} BTC
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-500">
+                    Available:{" "}
+                    <span className="font-medium text-slate-300">
+                      {confirmedBitcoinBalance ?? "0.00000000"} BTC
+                    </span>
                   </span>
-                </span>
+
+                  <button
+                    type="button"
+                    onClick={handleBitcoinMax}
+                    disabled={!selectedFeeRate || confirmedUtxos.length === 0}
+                    className="text-xs font-semibold text-amber-300 transition hover:text-amber-200 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    MAX
+                  </button>
+                </div>
               </div>
 
               <div className="relative mt-2">
@@ -918,8 +1034,9 @@ export default function Send() {
             )}
 
             <div className="mt-5 rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.05] p-4 text-sm leading-6 text-cyan-200">
-              BTC transactions are signed locally in your browser. Broadcast to
-              Bitcoin Mainnet is not enabled yet.
+              BTC transactions are signed locally in your browser. Broadcasting
+              sends the signed transaction to Bitcoin Mainnet and cannot be
+              reversed.
             </div>
           </div>
         )}
