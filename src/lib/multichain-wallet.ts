@@ -157,6 +157,34 @@ function deriveEthereumAddress(
   );
 }
 
+export function deriveEthereumPrivateKey(
+  mnemonic: string,
+): Uint8Array {
+  const normalizedMnemonic =
+    normalizeMnemonic(mnemonic);
+
+  const seed =
+    mnemonicToSeedSync(
+      normalizedMnemonic,
+    );
+
+  const root =
+    HDKey.fromMasterSeed(seed);
+
+  const account =
+    root.derive(
+      ETH_DERIVATION_PATH,
+    );
+
+  if (!account.privateKey) {
+    throw new Error(
+      "Failed to derive Ethereum private key",
+    );
+  }
+
+  return account.privateKey;
+}
+
 export async function deriveMultichainAddresses(
   mnemonic: string,
 ): Promise<MultichainAddresses> {
