@@ -122,16 +122,12 @@ var (
 						authz.ModuleName,
 						epochstypes.ModuleName,
 						// ibc modules
-						ibcexported.ModuleName,
-						// chain modules
-						tatcoremoduletypes.ModuleName},
+						ibcexported.ModuleName},
 					EndBlockers: []string{
 						govtypes.ModuleName,
 						stakingtypes.ModuleName,
 						feegrant.ModuleName,
-						group.ModuleName,
-						// chain modules
-						tatcoremoduletypes.ModuleName},
+						group.ModuleName},
 					// The following is mostly only needed when ModuleName != StoreKey name.
 					OverrideStoreKeys: []*runtimev1alpha1.StoreKeyConfig{
 						{
