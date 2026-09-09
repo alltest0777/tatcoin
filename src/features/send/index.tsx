@@ -33,6 +33,16 @@ import {
 import { signEthereumTransaction } from "../../lib/ethereum-wallet";
 import type { BuiltEthereumTransaction } from "../../lib/ethereum-transaction";
 
+import {
+  encodeUsdtTransfer,
+  formatUsdtBalance,
+  getUsdtBalance,
+  getUsdtTransferFeeQuote,
+  parseUsdtAmount,
+  USDT_CONTRACT_ADDRESS,
+  type UsdtTransferFeeQuote,
+} from "../../services/usdt";
+
 function tatToUtat(value: string): string {
   const normalized = value.trim();
 
@@ -120,7 +130,7 @@ export default function Send() {
   const ethAddress = useWalletStore((state) => state.ethAddress);
   const walletLocked = Boolean(address && !signer);
 
-  const [asset, setAsset] = useState<"tat" | "btc" | "eth">("tat");
+  const [asset, setAsset] = useState<"tat" | "btc" | "eth" | "usdt">("tat");
 
   const balanceQuery = useQuery({
     queryKey: ["tat-balance", address],
@@ -153,7 +163,14 @@ export default function Send() {
   const ethereumBalanceQuery = useQuery({
     queryKey: ["ethereum-balance", ethAddress],
     queryFn: () => getEthereumBalance(ethAddress!),
-    enabled: asset === "eth" && Boolean(ethAddress),
+    enabled: (asset === "eth" || asset === "usdt") && Boolean(ethAddress),
+    refetchInterval: 30_000,
+  });
+
+  const usdtBalanceQuery = useQuery({
+    queryKey: ["usdt-balance", ethAddress],
+    queryFn: () => getUsdtBalance(ethAddress!),
+    enabled: asset === "usdt" && Boolean(ethAddress),
     refetchInterval: 30_000,
   });
 
@@ -178,6 +195,11 @@ export default function Send() {
   const availableEthereumBalance =
     ethAddress && ethereumBalanceQuery.data !== undefined
       ? formatEthereumBalance(ethereumBalanceQuery.data)
+      : null;
+
+  const availableUsdtBalance =
+    ethAddress && usdtBalanceQuery.data !== undefined
+      ? formatUsdtBalance(usdtBalanceQuery.data)
       : null;
 
   const [toAddress, setToAddress] = useState("");
@@ -229,6 +251,35 @@ export default function Send() {
 
   const [ethActualFee, setEthActualFee] = useState<bigint | null>(null);
   const [ethConfirmedBlock, setEthConfirmedBlock] = useState<bigint | null>(
+    null,
+  );
+
+  const [usdtToAddress, setUsdtToAddress] = useState("");
+  const [usdtAmount, setUsdtAmount] = useState("");
+
+  const [usdtPlan, setUsdtPlan] = useState<UsdtTransferFeeQuote | null>(null);
+
+  const [usdtError, setUsdtError] = useState("");
+  const [usdtReviewing, setUsdtReviewing] = useState(false);
+  const [usdtPreparing, setUsdtPreparing] = useState(false);
+
+  const [usdtMnemonic, setUsdtMnemonic] = useState("");
+  const [usdtSigning, setUsdtSigning] = useState(false);
+  const [usdtSigned, setUsdtSigned] = useState<BuiltEthereumTransaction | null>(
+    null,
+  );
+
+  const [usdtBroadcasting, setUsdtBroadcasting] = useState(false);
+  const [usdtBroadcastTxid, setUsdtBroadcastTxid] = useState<string | null>(
+    null,
+  );
+
+  const [usdtReceiptStatus, setUsdtReceiptStatus] = useState<
+    "idle" | "pending" | "confirmed" | "failed"
+  >("idle");
+
+  const [usdtActualFee, setUsdtActualFee] = useState<bigint | null>(null);
+  const [usdtConfirmedBlock, setUsdtConfirmedBlock] = useState<bigint | null>(
     null,
   );
 
@@ -471,6 +522,13 @@ export default function Send() {
           >
             ETH
           </button>
+          <button
+            type="button"
+            onClick={() => setAsset("usdt")}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+          >
+            USDT
+          </button>
         </div>
 
         <div className="max-w-2xl rounded-3xl border border-amber-400/20 bg-amber-400/[0.05] p-6">
@@ -490,6 +548,653 @@ export default function Send() {
             Unlock wallet
           </Link>
         </div>
+      </div>
+    );
+  }
+
+  if (asset === "usdt") {
+    async function prepareUsdtReview() {
+      if (!ethAddress || usdtBalanceQuery.data === undefined) {
+        return;
+      }
+
+      try {
+        setUsdtPreparing(true);
+        setUsdtError("");
+        setUsdtPlan(null);
+
+        const recipient = usdtToAddress.trim();
+
+        if (!/^0x[a-fA-F0-9]{40}$/.test(recipient)) {
+          throw new Error("Invalid Ethereum recipient address");
+        }
+
+        const value = parseUsdtAmount(usdtAmount);
+
+        if (value > usdtBalanceQuery.data) {
+          throw new Error("Insufficient USDT balance");
+        }
+
+        const plan = await getUsdtTransferFeeQuote(
+          ethAddress,
+          recipient,
+          value,
+        );
+
+        if (ethereumBalanceQuery.data === undefined) {
+          throw new Error("Ethereum balance is not available");
+        }
+
+        const ethBalanceWei = BigInt(ethereumBalanceQuery.data);
+
+        if (plan.maximumNetworkFee > ethBalanceWei) {
+          throw new Error(
+            "Insufficient ETH balance to cover maximum network fee",
+          );
+        }
+
+        setUsdtPlan(plan);
+        setUsdtReviewing(true);
+      } catch (err) {
+        setUsdtReviewing(false);
+        setUsdtError(
+          err instanceof Error
+            ? err.message
+            : "Unable to prepare USDT transaction",
+        );
+      } finally {
+        setUsdtPreparing(false);
+      }
+    }
+
+    function handleUsdtSign() {
+      if (!ethAddress || !usdtPlan) {
+        return;
+      }
+
+      try {
+        setUsdtSigning(true);
+        setUsdtError("");
+        setUsdtSigned(null);
+
+        const mnemonic = usdtMnemonic.trim().replace(/\s+/g, " ");
+
+        if (!mnemonic) {
+          throw new Error("Enter your recovery phrase");
+        }
+
+        const tokenAmount = parseUsdtAmount(usdtAmount);
+
+        const data = encodeUsdtTransfer(usdtToAddress.trim(), tokenAmount);
+
+        const signed = signEthereumTransaction({
+          mnemonic,
+          expectedFromAddress: ethAddress,
+          chainId: usdtPlan.chainId,
+          nonce: usdtPlan.nonce,
+          to: USDT_CONTRACT_ADDRESS,
+          value: 0n,
+          gasLimit: usdtPlan.gasLimit,
+          maxPriorityFeePerGas: usdtPlan.maxPriorityFeePerGas,
+          maxFeePerGas: usdtPlan.maxFeePerGas,
+          data,
+        });
+
+        setUsdtSigned(signed);
+        setUsdtMnemonic("");
+      } catch (err) {
+        setUsdtError(
+          err instanceof Error
+            ? err.message
+            : "Failed to sign USDT transaction",
+        );
+      } finally {
+        setUsdtSigning(false);
+      }
+    }
+
+    async function handleUsdtBroadcast() {
+      if (!usdtSigned || !ethAddress) {
+        return;
+      }
+
+      const confirmed = window.confirm(
+        "Broadcast this signed USDT transaction to Ethereum Mainnet?\n\n" +
+          "This action is irreversible.",
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        setUsdtBroadcasting(true);
+        setUsdtError("");
+        setUsdtReceiptStatus("pending");
+        setUsdtActualFee(null);
+        setUsdtConfirmedBlock(null);
+
+        const txid = await broadcastEthereumTransaction(usdtSigned.rawTxHex);
+
+        if (txid.toLowerCase() !== usdtSigned.txid.toLowerCase()) {
+          throw new Error(
+            "Broadcast TXID does not match the locally signed transaction",
+          );
+        }
+
+        setUsdtBroadcastTxid(txid);
+
+        await queryClient.invalidateQueries({
+          queryKey: ["ethereum-balance", ethAddress],
+        });
+
+        await queryClient.invalidateQueries({
+          queryKey: ["usdt-balance", ethAddress],
+        });
+
+        for (let attempt = 0; attempt < 30; attempt += 1) {
+          const receipt = await getEthereumTransactionReceipt(txid);
+
+          if (receipt) {
+            if (receipt.status === "0x1") {
+              const gasUsed = BigInt(receipt.gasUsed);
+              const effectiveGasPrice = BigInt(receipt.effectiveGasPrice);
+
+              setUsdtActualFee(gasUsed * effectiveGasPrice);
+              setUsdtConfirmedBlock(BigInt(receipt.blockNumber));
+              setUsdtReceiptStatus("confirmed");
+
+              await queryClient.invalidateQueries({
+                queryKey: ["ethereum-balance", ethAddress],
+              });
+
+              await queryClient.invalidateQueries({
+                queryKey: ["usdt-balance", ethAddress],
+              });
+
+              return;
+            }
+
+            if (receipt.status === "0x0") {
+              setUsdtReceiptStatus("failed");
+              return;
+            }
+          }
+
+          await new Promise((resolve) => window.setTimeout(resolve, 3000));
+        }
+
+        setUsdtReceiptStatus("pending");
+      } catch (err) {
+        setUsdtReceiptStatus("idle");
+
+        setUsdtError(
+          err instanceof Error
+            ? err.message
+            : "Failed to broadcast USDT transaction",
+        );
+      } finally {
+        setUsdtBroadcasting(false);
+      }
+    }
+
+    if (usdtReviewing && usdtPlan) {
+      return (
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-semibold text-white">
+              Review USDT transaction
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Ethereum Mainnet ERC-20 transfer. Nothing will be signed or
+              broadcast.
+            </p>
+          </div>
+
+          <div className="max-w-3xl rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+            <div className="space-y-5">
+              <div>
+                <div className="text-xs uppercase tracking-wider text-slate-500">
+                  From
+                </div>
+                <div className="mt-2 break-all font-mono text-sm text-violet-300">
+                  {ethAddress}
+                </div>
+              </div>
+
+              <div className="border-t border-white/10 pt-5">
+                <div className="text-xs uppercase tracking-wider text-slate-500">
+                  To
+                </div>
+                <div className="mt-2 break-all font-mono text-sm text-slate-300">
+                  {usdtToAddress.trim()}
+                </div>
+              </div>
+
+              <div className="border-t border-white/10 pt-5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-500">Amount</span>
+                  <span className="font-medium text-white">
+                    {usdtAmount} USDT
+                  </span>
+                </div>
+              </div>
+
+              <div className="border-t border-white/10 pt-5 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-white/10 bg-black/10 p-3">
+                  <div className="text-xs text-slate-500">Network</div>
+                  <div className="mt-1 text-sm font-medium text-white">
+                    Ethereum Mainnet
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-black/10 p-3">
+                  <div className="text-xs text-slate-500">Chain ID</div>
+                  <div className="mt-1 text-sm font-medium text-white">
+                    {usdtPlan.chainId.toString()}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-black/10 p-3 sm:col-span-2">
+                  <div className="text-xs text-slate-500">USDT contract</div>
+                  <div className="mt-1 break-all font-mono text-xs text-white">
+                    {USDT_CONTRACT_ADDRESS}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-black/10 p-3">
+                  <div className="text-xs text-slate-500">Nonce</div>
+                  <div className="mt-1 text-sm font-medium text-white">
+                    {usdtPlan.nonce.toString()}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-black/10 p-3">
+                  <div className="text-xs text-slate-500">Gas limit</div>
+                  <div className="mt-1 text-sm font-medium text-white">
+                    {usdtPlan.gasLimit.toString()}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-black/10 p-3">
+                  <div className="text-xs text-slate-500">Base fee</div>
+                  <div className="mt-1 text-sm font-medium text-white">
+                    {weiToGwei(usdtPlan.baseFeePerGas)} Gwei
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-black/10 p-3">
+                  <div className="text-xs text-slate-500">Priority fee</div>
+                  <div className="mt-1 text-sm font-medium text-white">
+                    {weiToGwei(usdtPlan.maxPriorityFeePerGas)} Gwei
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-black/10 p-3">
+                  <div className="text-xs text-slate-500">Max fee per gas</div>
+                  <div className="mt-1 text-sm font-medium text-white">
+                    {weiToGwei(usdtPlan.maxFeePerGas)} Gwei
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-white/10 pt-5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-500">
+                    Maximum network fee
+                  </span>
+                  <span className="font-medium text-slate-200">
+                    {weiToEth(usdtPlan.maximumNetworkFee)} ETH
+                  </span>
+                </div>
+
+                <div className="mt-2 text-xs leading-5 text-slate-500">
+                  Gas is paid in ETH. This is the EIP-1559 maximum; the actual
+                  fee can be lower.
+                </div>
+              </div>
+            </div>
+
+            {!usdtSigned && (
+              <div className="mt-7 border-t border-white/10 pt-6">
+                <label className="text-sm font-medium text-slate-300">
+                  Recovery phrase
+                </label>
+
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Used only in this browser to derive the Ethereum private key
+                  and sign this USDT transaction locally.
+                </p>
+
+                <textarea
+                  value={usdtMnemonic}
+                  onChange={(event) => {
+                    setUsdtMnemonic(event.target.value);
+                    setUsdtError("");
+                  }}
+                  rows={3}
+                  placeholder="Enter your recovery phrase"
+                  spellCheck={false}
+                  autoComplete="off"
+                  className="mt-3 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-700 focus:border-violet-400/40"
+                />
+
+                <div className="mt-4 rounded-2xl border border-violet-400/20 bg-violet-400/[0.05] p-4 text-sm leading-6 text-violet-100">
+                  The phrase must derive the Ethereum address shown above. It is
+                  cleared from this form immediately after successful signing.
+                </div>
+              </div>
+            )}
+
+            {usdtSigned && (
+              <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-5">
+                <div className="text-sm font-semibold text-emerald-200">
+                  Signed locally
+                </div>
+
+                <div className="mt-4 text-xs uppercase tracking-wider text-slate-500">
+                  TXID
+                </div>
+
+                <div className="mt-2 break-all font-mono text-xs text-emerald-300">
+                  {usdtSigned.txid}
+                </div>
+
+                <div className="mt-4 text-xs uppercase tracking-wider text-slate-500">
+                  Raw transaction
+                </div>
+
+                <div className="mt-2 max-h-44 overflow-auto break-all rounded-xl border border-white/10 bg-black/20 p-3 font-mono text-xs leading-5 text-slate-300">
+                  {usdtSigned.rawTxHex}
+                </div>
+
+                <div className="mt-4 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.05] p-3 text-sm leading-6 text-cyan-200">
+                  {usdtBroadcastTxid ? (
+                    <>
+                      {usdtReceiptStatus === "confirmed" ? (
+                        <>
+                          USDT transaction confirmed on Ethereum Mainnet.
+                          {usdtConfirmedBlock !== null && (
+                            <div className="mt-2">
+                              Block: {usdtConfirmedBlock.toString()}
+                            </div>
+                          )}
+                          {usdtActualFee !== null && (
+                            <div>
+                              Actual network fee: {weiToEth(usdtActualFee)} ETH
+                            </div>
+                          )}
+                        </>
+                      ) : usdtReceiptStatus === "failed" ? (
+                        <>USDT transaction failed on Ethereum Mainnet.</>
+                      ) : (
+                        <>
+                          Transaction broadcast successfully. Waiting for
+                          confirmation...
+                        </>
+                      )}
+
+                      <div className="mt-2 break-all font-mono text-xs text-emerald-200">
+                        TXID: {usdtBroadcastTxid}
+                      </div>
+
+                      <a
+                        href={`https://etherscan.io/tx/${usdtBroadcastTxid}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 inline-block text-xs text-violet-300 underline hover:text-violet-200"
+                      >
+                        View on Etherscan
+                      </a>
+                    </>
+                  ) : (
+                    <>
+                      The USDT transaction is signed locally but has not been
+                      broadcast to Ethereum Mainnet.
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {usdtError && (
+              <div className="mt-4 rounded-xl border border-red-400/20 bg-red-400/[0.05] p-3 text-sm text-red-300">
+                {usdtError}
+              </div>
+            )}
+            <div className="mt-7 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                disabled={usdtSigning || usdtBroadcasting}
+                onClick={() => {
+                  setUsdtReviewing(false);
+                  setUsdtPlan(null);
+                  setUsdtSigned(null);
+                  setUsdtMnemonic("");
+                  setUsdtBroadcastTxid(null);
+                  setUsdtReceiptStatus("idle");
+                  setUsdtActualFee(null);
+                  setUsdtConfirmedBlock(null);
+                  setUsdtError("");
+                }}
+                className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Back
+              </button>
+
+              {!usdtSigned ? (
+                <button
+                  type="button"
+                  disabled={usdtSigning || !usdtMnemonic.trim()}
+                  onClick={handleUsdtSign}
+                  className="rounded-xl bg-violet-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-violet-300 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {usdtSigning ? "Signing locally..." : "Sign locally"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={usdtBroadcasting || Boolean(usdtBroadcastTxid)}
+                  onClick={() => {
+                    void handleUsdtBroadcast();
+                  }}
+                  className="rounded-xl bg-emerald-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {usdtBroadcastTxid
+                    ? "Broadcasted"
+                    : usdtBroadcasting
+                      ? "Broadcasting..."
+                      : "Broadcast to Ethereum Mainnet"}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-white">Send USDT</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Prepare a Tether USD transfer on Ethereum Mainnet.
+          </p>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setAsset("tat")}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+          >
+            TAT
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAsset("btc")}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+          >
+            BTC
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAsset("eth")}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+          >
+            ETH
+          </button>
+
+          <button
+            type="button"
+            className="rounded-xl bg-violet-400 px-4 py-2.5 text-sm font-semibold text-slate-950"
+          >
+            USDT
+          </button>
+        </div>
+
+        {!ethAddress ? (
+          <div className="max-w-2xl rounded-3xl border border-amber-400/20 bg-amber-400/[0.05] p-6">
+            <div className="font-medium text-amber-300">
+              Ethereum address unavailable
+            </div>
+            <p className="mt-2 text-sm text-slate-400">
+              Unlock the wallet once to derive your Ethereum address.
+            </p>
+            <Link
+              to="/wallet"
+              className="mt-5 inline-flex rounded-xl bg-violet-400 px-5 py-3 text-sm font-semibold text-slate-950"
+            >
+              Open wallet
+            </Link>
+          </div>
+        ) : (
+          <div className="max-w-3xl rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+            <div className="text-xs uppercase tracking-wider text-slate-500">
+              Ethereum address
+            </div>
+
+            <div className="mt-2 break-all font-mono text-sm text-violet-300">
+              {ethAddress}
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-white/10 bg-black/10 p-4">
+              <div className="text-xs uppercase tracking-wider text-slate-500">
+                USDT balance
+              </div>
+              <div className="mt-2 text-lg font-semibold text-white">
+                {usdtBalanceQuery.isLoading
+                  ? "Loading..."
+                  : usdtBalanceQuery.isError
+                    ? "Unable to load"
+                    : `${availableUsdtBalance ?? "0.000000"} USDT`}
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <label className="text-sm font-medium text-slate-300">
+                Recipient address
+              </label>
+
+              <input
+                value={usdtToAddress}
+                onChange={(event) => {
+                  setUsdtToAddress(event.target.value);
+                  setUsdtPlan(null);
+                  setUsdtError("");
+                }}
+                placeholder="0x..."
+                spellCheck={false}
+                autoComplete="off"
+                className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 font-mono text-sm text-white outline-none transition placeholder:text-slate-700 focus:border-violet-400/40"
+              />
+            </div>
+
+            <div className="mt-5">
+              <div className="flex items-center justify-between gap-4">
+                <label className="text-sm font-medium text-slate-300">
+                  Amount
+                </label>
+
+                <span className="text-xs text-slate-500">
+                  Available:{" "}
+                  <span className="font-medium text-slate-300">
+                    {availableUsdtBalance ?? "0.000000"} USDT
+                  </span>
+                </span>
+              </div>
+
+              <div className="relative mt-2">
+                <input
+                  value={usdtAmount}
+                  onChange={(event) => {
+                    setUsdtAmount(event.target.value);
+                    setUsdtPlan(null);
+                    setUsdtError("");
+                  }}
+                  placeholder="0.000000"
+                  inputMode="decimal"
+                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 pr-32 text-white outline-none transition placeholder:text-slate-700 focus:border-violet-400/40"
+                />
+
+                <div className="absolute inset-y-0 right-3 flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={
+                      usdtBalanceQuery.data === undefined ||
+                      usdtBalanceQuery.data <= 0n
+                    }
+                    onClick={() => {
+                      if (usdtBalanceQuery.data === undefined) {
+                        return;
+                      }
+
+                      setUsdtAmount(formatUsdtBalance(usdtBalanceQuery.data));
+                      setUsdtPlan(null);
+                      setUsdtError("");
+                    }}
+                    className="rounded-lg bg-violet-400/10 px-2 py-1 text-xs font-semibold text-violet-300 transition hover:bg-violet-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    MAX
+                  </button>
+
+                  <span className="text-sm font-medium text-violet-300">
+                    USDT
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={
+                !usdtToAddress.trim() ||
+                !usdtAmount.trim() ||
+                usdtBalanceQuery.isLoading ||
+                usdtPreparing
+              }
+              onClick={() => {
+                void prepareUsdtReview();
+              }}
+              className="mt-6 w-full rounded-xl bg-violet-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-violet-300 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {usdtPreparing ? "Preparing..." : "Review USDT transaction"}
+            </button>
+
+            {usdtError && (
+              <div className="mt-4 rounded-xl border border-red-400/20 bg-red-400/[0.05] p-3 text-sm text-red-300">
+                {usdtError}
+              </div>
+            )}
+
+            <div className="mt-5 text-xs leading-5 text-slate-500">
+              USDT is an ERC-20 token. Network fees are paid in ETH. Nothing is
+              signed or broadcast during Review.
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -999,6 +1704,13 @@ export default function Send() {
             className="rounded-xl bg-violet-400 px-4 py-2.5 text-sm font-semibold text-slate-950"
           >
             ETH
+          </button>
+          <button
+            type="button"
+            onClick={() => setAsset("usdt")}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+          >
+            USDT
           </button>
         </div>
 
@@ -1543,6 +2255,13 @@ export default function Send() {
           >
             ETH
           </button>
+          <button
+            type="button"
+            onClick={() => setAsset("usdt")}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+          >
+            USDT
+          </button>
         </div>
 
         {!btcAddress ? (
@@ -1912,6 +2631,13 @@ export default function Send() {
           className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
         >
           ETH
+        </button>
+        <button
+          type="button"
+          onClick={() => setAsset("usdt")}
+          className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+        >
+          USDT
         </button>
       </div>
 

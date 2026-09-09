@@ -1,3 +1,4 @@
+import { formatUsdtBalance, getUsdtBalance } from "../../services/usdt";
 import { ASSETS } from "../../config/assets";
 import {
   getTatCoinAddressTransactions,
@@ -55,6 +56,13 @@ export default function Dashboard() {
     refetchInterval: 30_000,
   });
 
+  const usdtBalanceQuery = useQuery({
+    queryKey: ["usdt-balance", ethAddress],
+    queryFn: () => getUsdtBalance(ethAddress!),
+    enabled: Boolean(ethAddress),
+    refetchInterval: 30_000,
+  });
+
   const delegationsQuery = useQuery({
     queryKey: ["tat-delegations", address],
     queryFn: () => getDelegations(address!),
@@ -94,6 +102,11 @@ export default function Dashboard() {
   const formattedEthereumBalance =
     ethAddress && ethereumBalanceQuery.data !== undefined
       ? formatEthereumBalance(ethereumBalanceQuery.data)
+      : null;
+
+  const formattedUsdtBalance =
+    ethAddress && usdtBalanceQuery.data !== undefined
+      ? formatUsdtBalance(usdtBalanceQuery.data)
       : null;
 
   const delegatedUtat = (delegationsQuery.data ?? [])
@@ -228,6 +241,7 @@ export default function Dashboard() {
             const isTat = asset.id === "tat";
             const isBtc = asset.id === "btc";
             const isEth = asset.id === "eth";
+            const isUsdt = asset.id === "usdt";
 
             return (
               <div
@@ -308,6 +322,32 @@ export default function Dashboard() {
                           ? ethereumBalanceQuery.isError
                             ? "Ethereum RPC unavailable"
                             : "Ethereum Mainnet"
+                          : "Unlock wallet to derive address"}
+                      </div>
+                    </>
+                  ) : isUsdt ? (
+                    <>
+                      <div className="font-semibold text-white">
+                        {!ethAddress
+                          ? "—"
+                          : usdtBalanceQuery.isLoading
+                            ? "Loading..."
+                            : usdtBalanceQuery.isError
+                              ? "Unable to load"
+                              : `${formattedUsdtBalance ?? "0.000000"} USDT`}
+                      </div>
+
+                      <div
+                        className={
+                          usdtBalanceQuery.isError
+                            ? "mt-1 text-xs text-red-300"
+                            : "mt-1 text-xs text-emerald-300"
+                        }
+                      >
+                        {ethAddress
+                          ? usdtBalanceQuery.isError
+                            ? "Ethereum RPC unavailable"
+                            : "Ethereum ERC-20"
                           : "Unlock wallet to derive address"}
                       </div>
                     </>

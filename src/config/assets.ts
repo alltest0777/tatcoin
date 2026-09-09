@@ -1,7 +1,4 @@
-import {
-  CHAINS,
-  type ChainId,
-} from "./chains";
+import { CHAINS, type ChainId } from "./chains";
 
 export interface AssetConfig {
   id: string;
@@ -46,12 +43,18 @@ export const ASSETS: AssetConfig[] = [
     enabled: false,
     native: true,
   },
+
+  {
+    id: "usdt",
+    chainId: "ethereum",
+    symbol: "USDT",
+    name: "Tether USD",
+    decimals: 6,
+    enabled: true,
+    native: false,
+  },
 ];
 
-export function getAssetConfig(
-  assetId: string,
-): AssetConfig | undefined {
-  return ASSETS.find(
-    (asset) => asset.id === assetId,
-  );
+export function getAssetConfig(assetId: string): AssetConfig | undefined {
+  return ASSETS.find((asset) => asset.id === assetId);
 }
