@@ -32,9 +32,6 @@ type ModuleInputs struct {
 	StoreService store.KVStoreService
 	Cdc          codec.Codec
 	AddressCodec address.Codec
-
-	AuthKeeper types.AuthKeeper
-	BankKeeper types.BankKeeper
 }
 
 type ModuleOutputs struct {
@@ -56,7 +53,7 @@ func ProvideModule(in ModuleInputs) ModuleOutputs {
 		in.AddressCodec,
 		authority,
 	)
-	m := NewAppModule(in.Cdc, k, in.AuthKeeper, in.BankKeeper)
+	m := NewAppModule(in.Cdc, k)
 
 	return ModuleOutputs{TatcoreKeeper: k, Module: m}
 }
