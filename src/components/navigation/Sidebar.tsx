@@ -12,6 +12,7 @@ const navigation = [
   { to: "/", label: "Dashboard", icon: RiDashboardLine, end: true },
   { to: "/wallet", label: "Wallet", icon: RiWallet3Line },
   { to: "/send", label: "Send", icon: RiExchangeFundsLine },
+  { to: "/swap", label: "Swap", icon: RiExchangeFundsLine },
   { to: "/receive", label: "Receive", icon: RiHistoryLine },
   { to: "/staking", label: "Staking", icon: RiShieldCheckLine },
   { to: "/explorer", label: "Explorer", icon: RiHistoryLine },
