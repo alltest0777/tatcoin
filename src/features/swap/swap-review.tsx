@@ -44,6 +44,25 @@ export default function SwapReview({
   plan,
   onBack,
 }: SwapReviewProps) {
+  const networkFeePercentHundredths =
+    sellToken === "ETH" && sellAmount > 0n
+      ? (plan.fee.estimatedFee * 10_000n) / sellAmount
+      : null;
+
+  const highNetworkFee =
+    sellToken === "ETH" &&
+    sellAmount > 0n &&
+    plan.fee.estimatedFee * 10n >= sellAmount;
+
+  const networkFeePercentText =
+    networkFeePercentHundredths === null
+      ? null
+      : `${networkFeePercentHundredths / 100n}.${(
+          networkFeePercentHundredths % 100n
+        )
+          .toString()
+          .padStart(2, "0")}`;
+
   const maximumEthDebit =
     sellToken === "ETH"
       ? sellAmount + plan.fee.estimatedFee
@@ -315,6 +334,23 @@ export default function SwapReview({
               </div>
             )}
           </div>
+
+          {highNetworkFee && (
+            <div
+              role="note"
+              className="rounded-2xl border border-amber-400/30 bg-amber-400/[0.08] p-4 text-sm leading-6 text-amber-100"
+            >
+              <p className="font-semibold">High network fee</p>
+              <p className="mt-1">
+                The maximum network fee is approximately {networkFeePercentText}
+                % of the ETH amount you are selling. This is an upper limit; the
+                actual network fee may be lower.
+              </p>
+              <p className="mt-1">
+                Consider waiting and requesting a fresh quote before signing.
+              </p>
+            </div>
+          )}
 
           <div className="border-t border-white/10 pt-5">
             <div className="text-xs uppercase tracking-wider text-slate-500">
