@@ -10,6 +10,12 @@ const SWAP_FEE_ENABLED = process.env.SWAP_FEE_ENABLED?.trim() === "true";
 const SWAP_FEE_BPS = "25";
 const SWAP_FEE_RECIPIENT = "0xF87eF9F9217f27C8C48276C4f7fb8fAe61dDB8C6";
 
+const SWAP_ROUTE_MODE = process.env.SWAP_ROUTE_MODE?.trim() || "default";
+
+if (!["default", "uniswap_v3"].includes(SWAP_ROUTE_MODE)) {
+  throw new Error("Invalid SWAP_ROUTE_MODE");
+}
+
 const TOKENS = {
   ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
   USDT: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
@@ -108,12 +114,56 @@ const server = http.createServer(async (request, response) => {
   }
 
   try {
+    const providerSignal = AbortSignal.timeout(10_000);
+
+    if (SWAP_ROUTE_MODE === "uniswap_v3") {
+      const sourcesResponse = await fetch(
+        "https://api.0x.org/sources?chainId=1",
+        {
+          headers: {
+            "0x-api-key": ZEROX_API_KEY,
+            "0x-version": "v2",
+          },
+          signal: providerSignal,
+        },
+      );
+
+      if (!sourcesResponse.ok) {
+        throw new Error("Could not load swap liquidity sources");
+      }
+
+      const sourcesBody = await sourcesResponse.json();
+      const sources = sourcesBody?.sources;
+
+      if (
+        !Array.isArray(sources) ||
+        !sources.every(
+          (source) =>
+            typeof source === "string" && /^[A-Za-z0-9_]+$/.test(source),
+        ) ||
+        !sources.includes("Uniswap_V3")
+      ) {
+        throw new Error("Invalid liquidity sources or Uniswap_V3 unavailable");
+      }
+
+      const excludedSources = sources.filter(
+        (source) => source !== "Uniswap_V3",
+      );
+
+      if (excludedSources.length > 0) {
+        providerUrl.searchParams.set(
+          "excludedSources",
+          excludedSources.join(","),
+        );
+      }
+    }
+
     const providerResponse = await fetch(providerUrl, {
       headers: {
         "0x-api-key": ZEROX_API_KEY,
         "0x-version": "v2",
       },
-      signal: AbortSignal.timeout(10_000),
+      signal: providerSignal,
     });
 
     const body = await providerResponse.json();
