@@ -22,6 +22,44 @@ Protect the file:
 
 Never commit this environment file or expose the API key to frontend code.
 
+## Swap fee
+
+TatCoin Wallet supports an optional 0.25% integrator fee (25 basis points)
+for both ETH/USDT swap directions. The fee token is USDT on Ethereum Mainnet.
+
+Treasury address:
+
+    0xF87eF9F9217f27C8C48276C4f7fb8fAe61dDB8C6
+
+The rate, recipient and fee token are configured in `server/swap-proxy.mjs`.
+They cannot be overridden through client request parameters.
+
+To enable the fee, add this line to
+`/etc/tatcoin-wallet/swap-proxy.env`:
+
+    SWAP_FEE_ENABLED=true
+
+The fee is disabled when this variable is absent or is not exactly `true`.
+To disable it explicitly:
+
+    SWAP_FEE_ENABLED=false
+
+Restart the proxy after changing the environment file:
+
+    sudo systemctl restart tatcoin-swap-proxy.service
+
+The wallet displays the returned integrator fee and the separate 0x fee
+before signing. Ethereum network fees are shown separately.
+
+The `integratorFee` and `integratorFees` fields in the current provider
+response describe the same configured fee; do not add them together.
+
+The health endpoint confirms service availability and API key configuration.
+Verify fee activation using a fresh price or quote response.
+
+Fee-bearing quotes have been checked in both directions. Receipt of USDT
+by the treasury has not yet been verified with a completed fee-bearing swap.
+
 ## systemd
 
 Check the installed Node path:

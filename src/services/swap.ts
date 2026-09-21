@@ -345,3 +345,29 @@ export async function getUsdtApprovalFeeQuote(
     data,
   });
 }
+
+export function formatSwapFee(fee: SwapFee | null | undefined): string {
+  if (fee === null) {
+    return "Not charged";
+  }
+
+  if (
+    !fee ||
+    typeof fee.amount !== "string" ||
+    !/^\d+$/.test(fee.amount) ||
+    typeof fee.token !== "string"
+  ) {
+    return "Fee unavailable";
+  }
+
+  const token = (Object.keys(SWAP_TOKEN_ADDRESSES) as SwapToken[]).find(
+    (symbol) =>
+      SWAP_TOKEN_ADDRESSES[symbol].toLowerCase() === fee.token.toLowerCase(),
+  );
+
+  if (!token) {
+    return "Unsupported fee token";
+  }
+
+  return `${formatSwapAmount(fee.amount, token)} ${token}`;
+}

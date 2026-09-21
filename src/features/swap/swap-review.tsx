@@ -10,7 +10,7 @@ import type { BuiltEthereumTransaction } from "../../lib/ethereum-transaction";
 import { signEthereumTransaction } from "../../lib/ethereum-wallet";
 
 import type { SwapExecutionPlan, SwapToken } from "../../services/swap";
-import { formatSwapAmount } from "../../services/swap";
+import { formatSwapAmount, formatSwapFee } from "../../services/swap";
 
 interface SwapReviewProps {
   ethAddress: string;
@@ -247,6 +247,20 @@ export default function SwapReview({
                 Slippage protection
               </span>
               <span className="font-medium text-white">1%</span>
+            </div>
+
+            <div className="mt-3 flex justify-between gap-4">
+              <span className="text-sm text-slate-500">TatCoin Wallet fee</span>
+              <span className="font-medium text-white">
+                {formatSwapFee(plan.quote.fees.integratorFee)}
+              </span>
+            </div>
+
+            <div className="mt-3 flex justify-between gap-4">
+              <span className="text-sm text-slate-500">0x fee</span>
+              <span className="font-medium text-white">
+                {formatSwapFee(plan.quote.fees.zeroExFee)}
+              </span>
             </div>
           </div>
 

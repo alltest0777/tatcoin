@@ -5,6 +5,11 @@ const PORT = Number(process.env.SWAP_PROXY_PORT ?? "8787");
 const ZEROX_API_KEY = process.env.ZEROX_API_KEY?.trim();
 const ZEROX_ALLOWANCE_HOLDER = "0x0000000000001ff3684f28c67538d4d072c22734";
 
+const SWAP_FEE_ENABLED = process.env.SWAP_FEE_ENABLED?.trim() === "true";
+
+const SWAP_FEE_BPS = "25";
+const SWAP_FEE_RECIPIENT = "0xF87eF9F9217f27C8C48276C4f7fb8fAe61dDB8C6";
+
 const TOKENS = {
   ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
   USDT: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
@@ -95,6 +100,12 @@ const server = http.createServer(async (request, response) => {
   providerUrl.searchParams.set("sellAmount", sellAmount);
   providerUrl.searchParams.set("taker", taker);
   providerUrl.searchParams.set("slippageBps", "100");
+
+  if (SWAP_FEE_ENABLED) {
+    providerUrl.searchParams.set("swapFeeRecipient", SWAP_FEE_RECIPIENT);
+    providerUrl.searchParams.set("swapFeeBps", SWAP_FEE_BPS);
+    providerUrl.searchParams.set("swapFeeToken", TOKENS.USDT);
+  }
 
   try {
     const providerResponse = await fetch(providerUrl, {

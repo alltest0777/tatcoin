@@ -17,6 +17,7 @@ import {
   formatSwapAmount,
   getSwapPrice,
   parseSwapAmount,
+  formatSwapFee,
   type SwapPrice,
   type SwapToken,
   getUsdtApprovalFeeQuote,
@@ -403,7 +404,7 @@ export default function Swap() {
               <div className="flex justify-between gap-4">
                 <span className="text-slate-500">TatCoin Wallet fee</span>
                 <span className="text-cyan-100">
-                  {quote.fees.integratorFee ? "Enabled" : "Not enabled"}
+                  {formatSwapFee(quote.fees.integratorFee)}
                 </span>
               </div>
 
