@@ -57,8 +57,14 @@ response describe the same configured fee; do not add them together.
 The health endpoint confirms service availability and API key configuration.
 Verify fee activation using a fresh price or quote response.
 
-Fee-bearing quotes have been checked in both directions. Receipt of USDT
-by the treasury has not yet been verified with a completed fee-bearing swap.
+A completed 1 USDT → ETH swap on Ethereum Mainnet was verified.
+The successful transaction receipt contains one USDT transfer of
+0.0025 USDT to the configured treasury, matching the 0.25% fee.
+
+Transaction: `0x199c1a9d151283d43f4d2fe99df19ae4a877b621d699020a57644a01388df77b`
+Block: `26035467`
+
+Treasury receipt for the ETH → USDT direction has not yet been verified.
 
 ## Route selection
 
@@ -110,10 +116,11 @@ Run the local tests:
 
     node --test server/swap-route-selection.test.mjs server/swap-route-provider.test.mjs
 
-Automatic selection has been observed with a live USDT → ETH price request.
+Automatic selection has been observed with live USDT → ETH price requests.
 Quote selection and invalid-target fallback have been tested with mocked
-responses. A completed swap using automatic selection has not yet been
-verified.
+responses. A USDT → ETH swap completed successfully while the production
+proxy was configured in auto mode; its treasury fee transfer was verified.
+The selected route for that specific swap was not separately recorded.
 
 ## systemd
 
