@@ -60,6 +60,61 @@ Verify fee activation using a fresh price or quote response.
 Fee-bearing quotes have been checked in both directions. Receipt of USDT
 by the treasury has not yet been verified with a completed fee-bearing swap.
 
+## Route selection
+
+Set `SWAP_ROUTE_MODE` in `/etc/tatcoin-wallet/swap-proxy.env`:
+
+- `default`: request the standard 0x route. Used when unset or empty.
+- `uniswap_v3`: exclude all listed sources except Uniswap V3 for both directions.
+- `auto`: compare the standard route with a Uniswap V3 alternative
+  for USDT → ETH only. ETH → USDT uses the standard route.
+
+Example:
+
+    SWAP_ROUTE_MODE=auto
+
+Restart the proxy after changing this setting.
+
+### Automatic comparison
+
+Both candidates are validated against the requested tokens and sell amount.
+The alternative must use only Uniswap V3 and report matching integrator
+and 0x fees.
+
+Candidates are ranked by expected ETH output minus estimated network cost.
+A common gas price is used: the higher of the two values derived from
+`totalNetworkFee / gas`, rounded upward. Equal scores retain the standard route.
+
+This is an estimate, not a guarantee of the lowest actual transaction cost.
+The wallet separately estimates transaction fees through Ethereum RPC
+before signing.
+
+A valid standard response is retained if the alternative is unavailable,
+invalid, incompatible, or the comparison fails. Failure of the initial
+standard request is not recovered by trying the alternative.
+
+For `/price`, a missing allowance does not prevent comparison.
+For `/quote`, comparison requires no reported allowance issue.
+
+Automatic comparison currently makes up to three sequential provider
+requests: standard quote, source list, and alternative quote. They share
+a 10-second timeout. The source list is not cached.
+
+Diagnostic `[swap-route]` logs show completed comparisons and caught
+comparison failures. Some early returns retain the standard response
+without a diagnostic message.
+
+### Verification
+
+Run the local tests:
+
+    node --test server/swap-route-selection.test.mjs server/swap-route-provider.test.mjs
+
+Automatic selection has been observed with a live USDT → ETH price request.
+Quote selection and invalid-target fallback have been tested with mocked
+responses. A completed swap using automatic selection has not yet been
+verified.
+
 ## systemd
 
 Check the installed Node path:
