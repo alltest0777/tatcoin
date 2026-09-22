@@ -127,3 +127,81 @@ test("valid alternative wins when its net ETH output is higher", async (t) => {
   assert.equal(calls, 3);
   assert.deepEqual(result.body, alternative);
 });
+
+const HOLDER = "0x0000000000001ff3684f28c67538d4d072c22734";
+
+function executableQuote(gas, buyAmount, data) {
+  return {
+    ...baselineQuote(),
+    buyAmount,
+    minBuyAmount: ((BigInt(buyAmount) * 99n) / 100n).toString(),
+    allowanceTarget: HOLDER,
+    totalNetworkFee: (BigInt(gas) * 100_000_000n).toString(),
+    transaction: {
+      to: HOLDER,
+      value: "0",
+      data,
+      gas,
+      gasPrice: "100000000",
+    },
+    route: {
+      fills: [{ source: "Uniswap_V3" }],
+    },
+  };
+}
+
+function runQuoteComparison() {
+  return fetchComparedSwapRoute({
+    providerUrl: new URL("https://api.0x.org/swap/allowance-holder/quote"),
+    headers: {},
+    signal: AbortSignal.timeout(1000),
+    validation: {
+      sellSymbol: "USDT",
+      buySymbol: "ETH",
+      sellAmount: "1000000",
+      providerMethod: "quote",
+    },
+  });
+}
+
+test("quote: selects the complete alternative transaction", async (t) => {
+  const baseline = executableQuote("300000", "350000000000000", "0x1234");
+  const alternative = executableQuote("200000", "345000000000000", "0xabcd");
+  let calls = 0;
+
+  t.mock.method(globalThis, "fetch", async () => {
+    calls += 1;
+    if (calls === 1) return Response.json(baseline);
+    if (calls === 2) {
+      return Response.json({ sources: ["Uniswap_V3", "Curve"] });
+    }
+    return Response.json(alternative);
+  });
+
+  const result = await runQuoteComparison();
+
+  assert.equal(calls, 3);
+  assert.deepEqual(result.body, alternative);
+  assert.equal(result.body.transaction.data, "0xabcd");
+});
+
+test("quote: unexpected alternative target preserves baseline", async (t) => {
+  const baseline = executableQuote("300000", "350000000000000", "0x1234");
+  const alternative = executableQuote("200000", "345000000000000", "0xabcd");
+  alternative.transaction.to = "0x1111111111111111111111111111111111111111";
+  let calls = 0;
+
+  t.mock.method(globalThis, "fetch", async () => {
+    calls += 1;
+    if (calls === 1) return Response.json(baseline);
+    if (calls === 2) {
+      return Response.json({ sources: ["Uniswap_V3", "Curve"] });
+    }
+    return Response.json(alternative);
+  });
+
+  const result = await runQuoteComparison();
+
+  assert.equal(calls, 3);
+  assert.deepEqual(result.body, baseline);
+});
