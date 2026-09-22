@@ -1,4 +1,6 @@
 import http from "node:http";
+import { validateSwapQuote } from "./swap-quote-validation.mjs";
+import { fetchComparedSwapRoute } from "./swap-route-provider.mjs";
 
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.SWAP_PROXY_PORT ?? "8787");
@@ -12,7 +14,7 @@ const SWAP_FEE_RECIPIENT = "0xF87eF9F9217f27C8C48276C4f7fb8fAe61dDB8C6";
 
 const SWAP_ROUTE_MODE = process.env.SWAP_ROUTE_MODE?.trim() || "default";
 
-if (!["default", "uniswap_v3"].includes(SWAP_ROUTE_MODE)) {
+if (!["default", "uniswap_v3", "auto"].includes(SWAP_ROUTE_MODE)) {
   throw new Error("Invalid SWAP_ROUTE_MODE");
 }
 
@@ -158,15 +160,37 @@ const server = http.createServer(async (request, response) => {
       }
     }
 
-    const providerResponse = await fetch(providerUrl, {
-      headers: {
-        "0x-api-key": ZEROX_API_KEY,
-        "0x-version": "v2",
-      },
-      signal: providerSignal,
-    });
+    const providerHeaders = {
+      "0x-api-key": ZEROX_API_KEY,
+      "0x-version": "v2",
+    };
 
-    const body = await providerResponse.json();
+    let providerResponse;
+    let body;
+
+    if (SWAP_ROUTE_MODE === "auto" && sellSymbol === "USDT") {
+      const result = await fetchComparedSwapRoute({
+        providerUrl,
+        headers: providerHeaders,
+        signal: providerSignal,
+        validation: {
+          sellSymbol,
+          buySymbol,
+          sellAmount,
+          providerMethod,
+        },
+      });
+
+      providerResponse = result.response;
+      body = result.body;
+    } else {
+      providerResponse = await fetch(providerUrl, {
+        headers: providerHeaders,
+        signal: providerSignal,
+      });
+
+      body = await providerResponse.json();
+    }
 
     const allowanceSpender = body?.issues?.allowance?.spender;
     const allowanceTarget = body?.allowanceTarget;
@@ -241,6 +265,13 @@ const server = http.createServer(async (request, response) => {
         return;
       }
     }
+
+    validateSwapQuote(body, {
+      sellSymbol,
+      buySymbol,
+      sellAmount,
+      providerMethod,
+    });
 
     sendJson(response, 200, body);
   } catch (error) {
