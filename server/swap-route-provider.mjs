@@ -71,7 +71,8 @@ export async function fetchComparedSwapRoute({
       return baseline;
     }
 
-    // For the same USDT sell amount, require matching reported fees.
+    // Compare fee presence, token and type.
+    // Require equal amounts only when selling a fixed USDT amount.
     function feeKey(fee) {
       if (fee === null) return "none";
 
@@ -85,7 +86,20 @@ export async function fetchComparedSwapRoute({
         throw new Error("Invalid fee data");
       }
 
-      return `${fee.token.toLowerCase()}:${BigInt(fee.amount)}:${fee.type}`;
+      const token = fee.token.toLowerCase();
+
+      if (
+        validation.sellSymbol === "ETH" &&
+        token !== "0xdac17f958d2ee523a2206206994597c13d831ec7"
+      ) {
+        throw new Error("Expected swap fees in USDT");
+      }
+
+      // USDT input is fixed: require equal fee amounts.
+      // USDT output varies: require matching token and fee type.
+      return validation.sellSymbol === "USDT"
+        ? `${token}:${BigInt(fee.amount)}:${fee.type}`
+        : `${token}:${fee.type}`;
     }
 
     for (const name of ["integratorFee", "zeroExFee"]) {
@@ -122,8 +136,20 @@ export async function fetchComparedSwapRoute({
     const commonGasPrice =
       first.gasPrice > second.gasPrice ? first.gasPrice : second.gasPrice;
 
+    let usdtPerEth;
+
+    if (validation.buySymbol === "USDT") {
+      const sellWei = positiveInteger(baseline.body.sellAmount);
+      const buyUsdtUnits = positiveInteger(baseline.body.buyAmount);
+
+      // Common effective reference rate from the baseline quote.
+      // USDT base units per 1 ETH, rounded upward.
+      usdtPerEth = (buyUsdtUnits * 10n ** 18n + sellWei - 1n) / sellWei;
+    }
+
     const selected = selectSwapRoute({
-      buyToken: "ETH",
+      buyToken: validation.buySymbol,
+      usdtPerEth,
       gasPriceWei: commonGasPrice,
       defaultRoute: {
         buyAmount: BigInt(baseline.body.buyAmount),
@@ -142,6 +168,8 @@ export async function fetchComparedSwapRoute({
       defaultGas: first.gas.toString(),
       alternativeBuyAmount: alternative.body.buyAmount,
       alternativeGas: second.gas.toString(),
+      buyToken: validation.buySymbol,
+      referenceUsdtPerEth: usdtPerEth?.toString() ?? null,
     });
 
     return selected === "alternative" ? alternative : baseline;

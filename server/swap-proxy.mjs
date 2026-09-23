@@ -168,7 +168,7 @@ const server = http.createServer(async (request, response) => {
     let providerResponse;
     let body;
 
-    if (SWAP_ROUTE_MODE === "auto" && sellSymbol === "USDT") {
+    if (SWAP_ROUTE_MODE === "auto") {
       const result = await fetchComparedSwapRoute({
         providerUrl,
         headers: providerHeaders,

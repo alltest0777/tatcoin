@@ -205,3 +205,113 @@ test("quote: unexpected alternative target preserves baseline", async (t) => {
   assert.equal(calls, 3);
   assert.deepEqual(result.body, baseline);
 });
+
+function ethToUsdtQuote(gas, buyAmount, integratorAmount, providerAmount) {
+  return {
+    ...baselineQuote(),
+    sellToken: ETH,
+    buyToken: USDT,
+    sellAmount: "1000000000000000",
+    buyAmount,
+    minBuyAmount: ((BigInt(buyAmount) * 99n) / 100n).toString(),
+    allowanceTarget: HOLDER,
+    totalNetworkFee: (BigInt(gas) * 1_000_000_000n).toString(),
+    fees: {
+      integratorFee: {
+        amount: integratorAmount,
+        token: USDT,
+        type: "volume",
+      },
+      zeroExFee: {
+        amount: providerAmount,
+        token: USDT,
+        type: "volume",
+      },
+    },
+    transaction: {
+      to: HOLDER,
+      value: "1000000000000000",
+      data: "0x1234",
+      gas,
+      gasPrice: "1000000000",
+    },
+    route: {
+      fills: [{ source: "Uniswap_V3" }],
+    },
+  };
+}
+
+function runEthToUsdtComparison() {
+  return fetchComparedSwapRoute({
+    providerUrl: new URL("https://api.0x.org/swap/allowance-holder/quote"),
+    headers: {},
+    signal: AbortSignal.timeout(1000),
+    validation: {
+      sellSymbol: "ETH",
+      buySymbol: "USDT",
+      sellAmount: "1000000000000000",
+      providerMethod: "quote",
+    },
+  });
+}
+
+test("ETH to USDT: lower gas wins despite lower output and different fees", async (t) => {
+  const baseline = ethToUsdtQuote("900000", "3000000", "7530", "4518");
+  const alternative = ethToUsdtQuote("300000", "2950000", "7404", "4442");
+  let calls = 0;
+
+  t.mock.method(globalThis, "fetch", async () => {
+    calls += 1;
+    if (calls === 1) return Response.json(baseline);
+    if (calls === 2) {
+      return Response.json({ sources: ["Uniswap_V3", "Curve"] });
+    }
+    return Response.json(alternative);
+  });
+
+  const result = await runEthToUsdtComparison();
+
+  assert.equal(calls, 3);
+  assert.deepEqual(result.body, alternative);
+});
+
+test("ETH to USDT: higher output can outweigh extra gas", async (t) => {
+  const baseline = ethToUsdtQuote("400000", "3000000", "7530", "4518");
+  const alternative = ethToUsdtQuote("300000", "2500000", "6275", "3765");
+  let calls = 0;
+
+  t.mock.method(globalThis, "fetch", async () => {
+    calls += 1;
+    if (calls === 1) return Response.json(baseline);
+    if (calls === 2) {
+      return Response.json({ sources: ["Uniswap_V3", "Curve"] });
+    }
+    return Response.json(alternative);
+  });
+
+  const result = await runEthToUsdtComparison();
+
+  assert.equal(calls, 3);
+  assert.deepEqual(result.body, baseline);
+});
+
+test("ETH to USDT: wrong alternative ETH value preserves baseline", async (t) => {
+  const baseline = ethToUsdtQuote("900000", "3000000", "7530", "4518");
+  const alternative = ethToUsdtQuote("300000", "2950000", "7404", "4442");
+  alternative.transaction.value = "2000000000000000";
+  let calls = 0;
+
+  t.mock.method(globalThis, "fetch", async () => {
+    calls += 1;
+    if (calls === 1) return Response.json(baseline);
+    if (calls === 2) {
+      return Response.json({ sources: ["Uniswap_V3", "Curve"] });
+    }
+    return Response.json(alternative);
+  });
+
+  const result = await runEthToUsdtComparison();
+
+  assert.equal(calls, 3);
+  assert.deepEqual(result.body, baseline);
+});

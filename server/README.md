@@ -73,7 +73,7 @@ Set `SWAP_ROUTE_MODE` in `/etc/tatcoin-wallet/swap-proxy.env`:
 - `default`: request the standard 0x route. Used when unset or empty.
 - `uniswap_v3`: exclude all listed sources except Uniswap V3 for both directions.
 - `auto`: compare the standard route with a Uniswap V3 alternative
-  for USDT → ETH only. ETH → USDT uses the standard route.
+  for both USDT → ETH and ETH → USDT.
 
 Example:
 
@@ -84,12 +84,24 @@ Restart the proxy after changing this setting.
 ### Automatic comparison
 
 Both candidates are validated against the requested tokens and sell amount.
-The alternative must use only Uniswap V3 and report matching integrator
-and 0x fees.
+The alternative must use only Uniswap V3.
 
-Candidates are ranked by expected ETH output minus estimated network cost.
+Reported integrator and 0x fees must have matching presence, token and type.
+For USDT → ETH, their amounts must also match.
+For ETH → USDT, USDT fee amounts may differ with the quoted output.
+
+Candidates are ranked by expected output minus estimated network cost.
 A common gas price is used: the higher of the two values derived from
-`totalNetworkFee / gas`, rounded upward. Equal scores retain the standard route.
+`totalNetworkFee / gas`, rounded upward.
+
+For USDT → ETH, output and network cost are compared in ETH.
+For ETH → USDT, network cost is converted using the standard quote's
+effective `buyAmount / sellAmount` rate, expressed in USDT base units
+per ETH and rounded upward. This is a quote-derived estimate, not an
+independent market price. Both candidates use the same reference rate.
+
+Reported swap fees are not deducted from buyAmount again.
+Equal scores retain the standard route.
 
 This is an estimate, not a guarantee of the lowest actual transaction cost.
 The wallet separately estimates transaction fees through Ethereum RPC
