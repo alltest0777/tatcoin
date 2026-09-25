@@ -1,3 +1,4 @@
+import { assertWalletSession } from "../../stores/wallet-store";
 import { useState } from "react";
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -8,7 +9,7 @@ import {
   type EthereumTransactionFee,
 } from "../../services/ethereum";
 import type { BuiltEthereumTransaction } from "../../lib/ethereum-transaction";
-import { signEthereumTransaction } from "../../lib/ethereum-wallet";
+import { signSessionEthereum as signEthereumTransaction } from "../../stores/wallet-store";
 import { USDT_CONTRACT_ADDRESS } from "../../services/usdt";
 import {
   encodeUsdtApproval,
@@ -45,7 +46,6 @@ export default function ApprovalReview({
   plan,
   onBack,
 }: ApprovalReviewProps) {
-  const [mnemonic, setMnemonic] = useState("");
   const [signing, setSigning] = useState(false);
   const [signed, setSigned] = useState<BuiltEthereumTransaction | null>(null);
   const [error, setError] = useState("");
@@ -65,17 +65,10 @@ export default function ApprovalReview({
       setError("");
       setSigned(null);
 
-      const normalizedMnemonic = mnemonic.trim().replace(/\s+/g, " ");
-
-      if (!normalizedMnemonic) {
-        throw new Error("Enter your recovery phrase");
-      }
-
       const approvalAmount = parseSwapAmount(amount, "USDT");
       const data = encodeUsdtApproval(approvalAmount);
 
       const result = signEthereumTransaction({
-        mnemonic: normalizedMnemonic,
         expectedFromAddress: ethAddress,
         chainId: plan.chainId,
         nonce: plan.nonce,
@@ -88,7 +81,6 @@ export default function ApprovalReview({
       });
 
       setSigned(result);
-      setMnemonic("");
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to sign USDT approval",
@@ -120,6 +112,8 @@ export default function ApprovalReview({
       setReceiptStatus("pending");
       setActualFee(null);
       setConfirmedBlock(null);
+
+      assertWalletSession();
 
       const txid = await broadcastEthereumTransaction(signed.rawTxHex);
 
@@ -254,31 +248,7 @@ export default function ApprovalReview({
             execute the swap.
           </div>
 
-          {!signed && (
-            <div className="border-t border-white/10 pt-5">
-              <label className="text-sm font-medium text-slate-300">
-                Recovery phrase
-              </label>
-
-              <p className="mt-1 text-xs leading-5 text-slate-500">
-                Used only in this browser to derive the Ethereum private key and
-                sign this approval locally.
-              </p>
-
-              <textarea
-                value={mnemonic}
-                onChange={(event) => {
-                  setMnemonic(event.target.value);
-                  setError("");
-                }}
-                rows={3}
-                placeholder="Enter your recovery phrase"
-                spellCheck={false}
-                autoComplete="off"
-                className="mt-3 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-700 focus:border-violet-400/40"
-              />
-            </div>
-          )}
+          <p className="mt-4 text-sm text-slate-400">Signing uses your unlocked wallet session. Review the transaction before signing.</p>
 
           {signed && (
             <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-4">
@@ -368,7 +338,7 @@ export default function ApprovalReview({
             {!signed ? (
               <button
                 type="button"
-                disabled={signing || !mnemonic.trim()}
+                disabled={signing}
                 onClick={handleSign}
                 className="rounded-xl bg-violet-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-violet-300 disabled:cursor-not-allowed disabled:opacity-50"
               >

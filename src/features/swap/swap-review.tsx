@@ -1,3 +1,4 @@
+import { assertWalletSession } from "../../stores/wallet-store";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -7,7 +8,7 @@ import {
 } from "../../services/ethereum";
 
 import type { BuiltEthereumTransaction } from "../../lib/ethereum-transaction";
-import { signEthereumTransaction } from "../../lib/ethereum-wallet";
+import { signSessionEthereum as signEthereumTransaction } from "../../stores/wallet-store";
 
 import type { SwapExecutionPlan, SwapToken } from "../../services/swap";
 import { formatSwapAmount, formatSwapFee } from "../../services/swap";
@@ -67,7 +68,6 @@ export default function SwapReview({
     sellToken === "ETH"
       ? sellAmount + plan.fee.estimatedFee
       : plan.fee.estimatedFee;
-  const [mnemonic, setMnemonic] = useState("");
   const [signing, setSigning] = useState(false);
   const [signed, setSigned] = useState<BuiltEthereumTransaction | null>(null);
   const [error, setError] = useState("");
@@ -103,14 +103,7 @@ export default function SwapReview({
         );
       }
 
-      const normalizedMnemonic = mnemonic.trim().replace(/\s+/g, " ");
-
-      if (!normalizedMnemonic) {
-        throw new Error("Enter your recovery phrase");
-      }
-
       const result = signEthereumTransaction({
-        mnemonic: normalizedMnemonic,
         expectedFromAddress: ethAddress,
         chainId: plan.fee.chainId,
         nonce: plan.fee.nonce,
@@ -124,7 +117,6 @@ export default function SwapReview({
 
       setSigned(result);
       setSignedAt(Date.now());
-      setMnemonic("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to sign swap");
     } finally {
@@ -164,6 +156,8 @@ export default function SwapReview({
       setReceiptStatus("pending");
       setActualFee(null);
       setConfirmedBlock(null);
+
+      assertWalletSession();
 
       const txid = await broadcastEthereumTransaction(signed.rawTxHex);
 
@@ -376,31 +370,7 @@ export default function SwapReview({
             signed or broadcast.
           </div>
 
-          {!signed && (
-            <div className="border-t border-white/10 pt-5">
-              <label className="text-sm font-medium text-slate-300">
-                Recovery phrase
-              </label>
-
-              <p className="mt-1 text-xs leading-5 text-slate-500">
-                Used only in this browser to derive the Ethereum private key and
-                sign this swap locally.
-              </p>
-
-              <textarea
-                value={mnemonic}
-                onChange={(event) => {
-                  setMnemonic(event.target.value);
-                  setError("");
-                }}
-                rows={3}
-                placeholder="Enter your recovery phrase"
-                spellCheck={false}
-                autoComplete="off"
-                className="mt-3 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-700 focus:border-violet-400/40"
-              />
-            </div>
-          )}
+          <p className="mt-4 text-sm text-slate-400">Signing uses your unlocked wallet session. Review the transaction before signing.</p>
 
           {signed && (
             <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-4">
@@ -489,7 +459,7 @@ export default function SwapReview({
             {!signed ? (
               <button
                 type="button"
-                disabled={signing || !mnemonic.trim()}
+                disabled={signing}
                 onClick={handleSign}
                 className="rounded-xl bg-violet-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-violet-300 disabled:cursor-not-allowed disabled:opacity-50"
               >

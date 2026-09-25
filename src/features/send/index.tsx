@@ -1,3 +1,4 @@
+import { assertWalletSession } from "../../stores/wallet-store";
 import { Link } from "react-router-dom";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -18,7 +19,7 @@ import {
   type BitcoinTransactionPlan,
 } from "../../lib/bitcoin-transaction";
 
-import { signBitcoinTransaction } from "../../lib/bitcoin-wallet";
+import { signSessionBitcoin as signBitcoinTransaction } from "../../stores/wallet-store";
 
 import type { BuiltBitcoinTransaction } from "../../lib/bitcoin-transaction";
 
@@ -30,7 +31,7 @@ import {
   getEthereumTransactionReceipt,
   type EthereumTransactionFee,
 } from "../../services/ethereum";
-import { signEthereumTransaction } from "../../lib/ethereum-wallet";
+import { signSessionEthereum as signEthereumTransaction } from "../../stores/wallet-store";
 import type { BuiltEthereumTransaction } from "../../lib/ethereum-transaction";
 
 import {
@@ -222,7 +223,6 @@ export default function Send() {
   const [btcPlan, setBtcPlan] = useState<BitcoinTransactionPlan | null>(null);
   const [btcError, setBtcError] = useState("");
   const [btcReviewing, setBtcReviewing] = useState(false);
-  const [btcMnemonic, setBtcMnemonic] = useState("");
   const [btcSigning, setBtcSigning] = useState(false);
   const [btcSigned, setBtcSigned] = useState<BuiltBitcoinTransaction | null>(
     null,
@@ -235,7 +235,6 @@ export default function Send() {
   const [ethPlan, setEthPlan] = useState<EthereumTransactionFee | null>(null);
   const [ethError, setEthError] = useState("");
   const [ethReviewing, setEthReviewing] = useState(false);
-  const [ethMnemonic, setEthMnemonic] = useState("");
   const [ethSigning, setEthSigning] = useState(false);
   const [ethSigned, setEthSigned] = useState<BuiltEthereumTransaction | null>(
     null,
@@ -263,7 +262,6 @@ export default function Send() {
   const [usdtReviewing, setUsdtReviewing] = useState(false);
   const [usdtPreparing, setUsdtPreparing] = useState(false);
 
-  const [usdtMnemonic, setUsdtMnemonic] = useState("");
   const [usdtSigning, setUsdtSigning] = useState(false);
   const [usdtSigned, setUsdtSigned] = useState<BuiltEthereumTransaction | null>(
     null,
@@ -617,18 +615,11 @@ export default function Send() {
         setUsdtError("");
         setUsdtSigned(null);
 
-        const mnemonic = usdtMnemonic.trim().replace(/\s+/g, " ");
-
-        if (!mnemonic) {
-          throw new Error("Enter your recovery phrase");
-        }
-
         const tokenAmount = parseUsdtAmount(usdtAmount);
 
         const data = encodeUsdtTransfer(usdtToAddress.trim(), tokenAmount);
 
         const signed = signEthereumTransaction({
-          mnemonic,
           expectedFromAddress: ethAddress,
           chainId: usdtPlan.chainId,
           nonce: usdtPlan.nonce,
@@ -641,7 +632,6 @@ export default function Send() {
         });
 
         setUsdtSigned(signed);
-        setUsdtMnemonic("");
       } catch (err) {
         setUsdtError(
           err instanceof Error
@@ -673,6 +663,8 @@ export default function Send() {
         setUsdtReceiptStatus("pending");
         setUsdtActualFee(null);
         setUsdtConfirmedBlock(null);
+
+        assertWalletSession();
 
         const txid = await broadcastEthereumTransaction(usdtSigned.rawTxHex);
 
@@ -855,36 +847,7 @@ export default function Send() {
               </div>
             </div>
 
-            {!usdtSigned && (
-              <div className="mt-7 border-t border-white/10 pt-6">
-                <label className="text-sm font-medium text-slate-300">
-                  Recovery phrase
-                </label>
-
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Used only in this browser to derive the Ethereum private key
-                  and sign this USDT transaction locally.
-                </p>
-
-                <textarea
-                  value={usdtMnemonic}
-                  onChange={(event) => {
-                    setUsdtMnemonic(event.target.value);
-                    setUsdtError("");
-                  }}
-                  rows={3}
-                  placeholder="Enter your recovery phrase"
-                  spellCheck={false}
-                  autoComplete="off"
-                  className="mt-3 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-700 focus:border-violet-400/40"
-                />
-
-                <div className="mt-4 rounded-2xl border border-violet-400/20 bg-violet-400/[0.05] p-4 text-sm leading-6 text-violet-100">
-                  The phrase must derive the Ethereum address shown above. It is
-                  cleared from this form immediately after successful signing.
-                </div>
-              </div>
-            )}
+            <p className="mt-4 text-sm text-slate-400">Signing uses your unlocked wallet session. Review the transaction before signing.</p>
 
             {usdtSigned && (
               <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-5">
@@ -970,7 +933,6 @@ export default function Send() {
                   setUsdtReviewing(false);
                   setUsdtPlan(null);
                   setUsdtSigned(null);
-                  setUsdtMnemonic("");
                   setUsdtBroadcastTxid(null);
                   setUsdtReceiptStatus("idle");
                   setUsdtActualFee(null);
@@ -985,7 +947,7 @@ export default function Send() {
               {!usdtSigned ? (
                 <button
                   type="button"
-                  disabled={usdtSigning || !usdtMnemonic.trim()}
+                  disabled={usdtSigning}
                   onClick={handleUsdtSign}
                   className="rounded-xl bg-violet-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-violet-300 disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -1301,7 +1263,6 @@ export default function Send() {
         }
 
         setEthPlan(plan);
-        setEthMnemonic("");
         setEthReviewing(true);
       } catch (err) {
         setEthReviewing(false);
@@ -1325,14 +1286,7 @@ export default function Send() {
         setEthError("");
         setEthSigned(null);
 
-        const mnemonic = ethMnemonic.trim().replace(/\s+/g, " ");
-
-        if (!mnemonic) {
-          throw new Error("Enter your recovery phrase");
-        }
-
         const signed = signEthereumTransaction({
-          mnemonic,
           expectedFromAddress: ethAddress,
           chainId: ethPlan.chainId,
           nonce: ethPlan.nonce,
@@ -1345,7 +1299,6 @@ export default function Send() {
         });
 
         setEthSigned(signed);
-        setEthMnemonic("");
       } catch (err) {
         setEthError(
           err instanceof Error
@@ -1377,6 +1330,8 @@ export default function Send() {
         setEthReceiptStatus("pending");
         setEthActualFee(null);
         setEthConfirmedBlock(null);
+
+        assertWalletSession();
 
         const txid = await broadcastEthereumTransaction(ethSigned.rawTxHex);
 
@@ -1534,33 +1489,7 @@ export default function Send() {
               </div>
             </div>
 
-            {!ethSigned && (
-              <div className="mt-7 border-t border-white/10 pt-6">
-                <label className="text-sm font-medium text-slate-300">
-                  Recovery phrase
-                </label>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Used only in this browser to derive the Ethereum private key
-                  and sign this transaction locally.
-                </p>
-                <textarea
-                  value={ethMnemonic}
-                  onChange={(event) => {
-                    setEthMnemonic(event.target.value);
-                    setEthError("");
-                  }}
-                  rows={3}
-                  placeholder="Enter your recovery phrase"
-                  spellCheck={false}
-                  autoComplete="off"
-                  className="mt-3 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-700 focus:border-violet-400/40"
-                />
-                <div className="mt-4 rounded-2xl border border-violet-400/20 bg-violet-400/[0.05] p-4 text-sm leading-6 text-violet-100">
-                  The phrase must derive the Ethereum address shown above. It is
-                  cleared from this form immediately after successful signing.
-                </div>
-              </div>
-            )}
+            <p className="mt-4 text-sm text-slate-400">Signing uses your unlocked wallet session. Review the transaction before signing.</p>
 
             {ethError && (
               <div className="mt-4 rounded-xl border border-red-400/20 bg-red-400/[0.05] p-3 text-sm text-red-300">
@@ -1632,7 +1561,6 @@ export default function Send() {
                 onClick={() => {
                   setEthReviewing(false);
                   setEthSigned(null);
-                  setEthMnemonic("");
                   setEthBroadcastTxid(null);
                   setEthReceiptStatus("idle");
                   setEthActualFee(null);
@@ -1647,7 +1575,7 @@ export default function Send() {
               {!ethSigned ? (
                 <button
                   type="button"
-                  disabled={ethSigning || !ethMnemonic.trim()}
+                  disabled={ethSigning}
                   onClick={handleEthereumSign}
                   className="rounded-xl bg-violet-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-violet-300 disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -1923,7 +1851,6 @@ export default function Send() {
 
         setBtcPlan(plan);
         setBtcSigned(null);
-        setBtcMnemonic("");
         setBtcReviewing(true);
       } catch (err) {
         setBtcPlan(null);
@@ -1946,14 +1873,7 @@ export default function Send() {
         setBtcError("");
         setBtcSigned(null);
 
-        const mnemonic = btcMnemonic.trim().replace(/\s+/g, " ");
-
-        if (!mnemonic) {
-          throw new Error("Enter your recovery phrase");
-        }
-
         const signed = signBitcoinTransaction({
-          mnemonic,
           expectedFromAddress: btcAddress,
           toAddress: btcToAddress.trim(),
           amountSats: btcPlan.amountSats,
@@ -1962,7 +1882,6 @@ export default function Send() {
         });
 
         setBtcSigned(signed);
-        setBtcMnemonic("");
       } catch (err) {
         setBtcError(
           err instanceof Error
@@ -1991,6 +1910,8 @@ export default function Send() {
       try {
         setBtcBroadcasting(true);
         setBtcError("");
+
+        assertWalletSession();
 
         const txid = await broadcastBitcoinTransaction(btcSigned.rawTxHex);
 
@@ -2097,33 +2018,7 @@ export default function Send() {
               </div>
             </div>
 
-            {!btcSigned && (
-              <div className="mt-7 border-t border-white/10 pt-6">
-                <label className="text-sm font-medium text-slate-300">
-                  Recovery phrase
-                </label>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Used only in this browser to derive the Bitcoin private key
-                  and sign this transaction locally.
-                </p>
-                <textarea
-                  value={btcMnemonic}
-                  onChange={(event) => {
-                    setBtcMnemonic(event.target.value);
-                    setBtcError("");
-                  }}
-                  rows={3}
-                  placeholder="Enter your recovery phrase"
-                  spellCheck={false}
-                  autoComplete="off"
-                  className="mt-3 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-700 focus:border-amber-400/40"
-                />
-                <div className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/[0.05] p-4 text-sm leading-6 text-amber-100">
-                  The phrase must derive the Bitcoin address shown above. It is
-                  cleared from this form immediately after successful signing.
-                </div>
-              </div>
-            )}
+            <p className="mt-4 text-sm text-slate-400">Signing uses your unlocked wallet session. Review the transaction before signing.</p>
 
             {btcError && (
               <div className="mt-4 rounded-xl border border-red-400/20 bg-red-400/[0.05] p-3 text-sm text-red-300">
@@ -2187,7 +2082,6 @@ export default function Send() {
                 onClick={() => {
                   setBtcReviewing(false);
                   setBtcSigned(null);
-                  setBtcMnemonic("");
                   setBtcBroadcastTxid(null);
                   setBtcError("");
                 }}
@@ -2199,7 +2093,7 @@ export default function Send() {
               {!btcSigned ? (
                 <button
                   type="button"
-                  disabled={btcSigning || !btcMnemonic.trim()}
+                  disabled={btcSigning}
                   onClick={handleBitcoinSign}
                   className="rounded-xl bg-amber-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
                 >

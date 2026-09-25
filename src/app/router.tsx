@@ -1,3 +1,4 @@
+import WalletSessionBoundary from "../components/layout/WalletSessionBoundary";
 import { createBrowserRouter } from "react-router-dom";
 
 import Layout from "./layout";
@@ -26,11 +27,11 @@ export const router = createBrowserRouter([
       },
       {
         path: "send",
-        element: <Send />,
+        element: <WalletSessionBoundary><Send /></WalletSessionBoundary>,
       },
       {
         path: "swap",
-        element: <Swap />,
+        element: <WalletSessionBoundary><Swap /></WalletSessionBoundary>,
       },
       {
         path: "receive",
@@ -38,7 +39,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "staking",
-        element: <Staking />,
+        element: <WalletSessionBoundary><Staking /></WalletSessionBoundary>,
       },
       {
         path: "explorer",
