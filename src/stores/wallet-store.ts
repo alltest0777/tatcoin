@@ -67,10 +67,21 @@ async function activate(mnemonic: string, password?: string) {
   const expected = snapshot();
   const wallet = await importWallet(mnemonic);
   const addresses = await deriveMultichainAddresses(wallet.mnemonic);
-  if ((expected.address && expected.address !== addresses.tat) ||
-      (expected.btcAddress && expected.btcAddress !== addresses.btc) ||
-      (expected.ethAddress && expected.ethAddress.toLowerCase() !== addresses.eth.toLowerCase())) {
-    throw new Error('Recovery phrase does not match this wallet. Remove the saved account before switching wallets.');
+  const mismatchedNetworks: string[] = [];
+  if (expected.address && expected.address !== addresses.tat) {
+    mismatchedNetworks.push("TAT");
+  }
+  if (expected.btcAddress && expected.btcAddress !== addresses.btc) {
+    mismatchedNetworks.push("BTC");
+  }
+  if (expected.ethAddress &&
+      expected.ethAddress.toLowerCase() !== addresses.eth.toLowerCase()) {
+    mismatchedNetworks.push("ETH");
+  }
+  if (mismatchedNetworks.length > 0) {
+    throw new Error(
+      `Recovery phrase does not match the saved wallet addresses: ${mismatchedNetworks.join(", ")}. Check your recovery backup. No saved wallet data was replaced.`,
+    );
   }
   const encrypted = password === undefined ? undefined : await encryptMnemonic(wallet.mnemonic, password);
   if (id !== generation || read(VAULT_KEY) !== storedVault) throw new Error('Wallet operation cancelled');
