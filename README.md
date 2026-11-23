@@ -70,7 +70,7 @@ Our goals are:
 - SHA256 verification
 - State Sync
 - Snapshot support
-- Public Testnet
+- Public Mainnet
 - Open-source development
 
 ---
@@ -103,6 +103,8 @@ Our goals are:
 
 # Network
 
+TatCoin's permanent public mainnet is `tat-1`. No chain reset or genesis replacement is planned. Earlier descriptions of `tat-1` as a testnet are outdated; the existing chain ID and genesis remain unchanged.
+
 | Parameter | Value |
 |-----------|-------|
 | Chain ID | `tat-1` |
@@ -119,7 +121,7 @@ Our goals are:
 
 Current status:
 
-- ✅ Public Testnet
+- ✅ Public Mainnet
 - ✅ Validator node
 - ✅ State Sync
 - ✅ GitHub Releases
@@ -190,7 +192,7 @@ tatcoind init mynode --chain-id tat-1
 This command creates the local blockchain configuration under:
 
 ```text
-~/.tatcoind
+~/.tatcoin
 ```
 
 ---
@@ -214,7 +216,7 @@ This directory contains:
 Copy the genesis file:
 
 ```bash
-cp networks/tat-1/genesis.json ~/.tatcoind/config/
+cp networks/tat-1/genesis.json ~/.tatcoin/config/
 ```
 
 ---
@@ -227,11 +229,11 @@ Run:
 tatcoind start
 ```
 
-If everything is configured correctly, the node will begin synchronizing with the TatCoin Testnet.
+If everything is configured correctly, the node will begin synchronizing with the TatCoin Mainnet.
 
 ---
 
-# Join the Public Testnet
+# Join the Public Mainnet
 
 Network parameters:
 
@@ -356,7 +358,7 @@ Every release is built automatically using GitHub Actions to ensure reproducible
 
 - Cosmos SDK blockchain
 - CometBFT consensus
-- Public Testnet
+- Public Mainnet
 - Validator support
 - State Sync
 - Automatic GitHub Releases
@@ -378,11 +380,11 @@ Every release is built automatically using GitHub Actions to ensure reproducible
 - Developer SDK
 - CLI improvements
 
-## Phase 4 — Mainnet
+## Mainnet maintenance and growth
 
 - Security review
-- Genesis ceremony
-- Mainnet launch
+- Network upgrades preserving chain continuity
+- Additional validators and infrastructure
 - Ecosystem growth
 
 ---

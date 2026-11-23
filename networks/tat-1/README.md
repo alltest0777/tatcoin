@@ -1,6 +1,8 @@
-# TatCoin Testnet (tat-1)
+# TatCoin Mainnet (tat-1)
 
-Welcome to the official TatCoin Testnet.
+Welcome to the official TatCoin mainnet.
+
+`tat-1` is TatCoin's permanent public mainnet. No chain reset or genesis replacement is planned. Earlier testnet descriptions are outdated; the existing chain ID and genesis remain unchanged.
 
 ## Network Information
 
@@ -12,6 +14,10 @@ Welcome to the official TatCoin Testnet.
 | Base Denomination | utat |
 | Display Denomination | TAT |
 | Decimals | 6 |
+
+## Node Home
+
+The default node home is `$HOME/.tatcoin`. A different directory can be selected explicitly with `--home`; this does not change the default.
 
 ## Genesis
 
