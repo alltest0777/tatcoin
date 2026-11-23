@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"cosmossdk.io/core/address"
-	"cosmossdk.io/log"
 	storetypes "cosmossdk.io/store/types"
 	addresscodec "github.com/cosmos/cosmos-sdk/codec/address"
 	codectestutil "github.com/cosmos/cosmos-sdk/codec/testutil"
