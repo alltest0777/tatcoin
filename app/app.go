@@ -90,7 +90,7 @@ type App struct {
 	AuthzKeeper           authzkeeper.Keeper
 	ConsensusParamsKeeper consensuskeeper.Keeper
 	CircuitBreakerKeeper  circuitkeeper.Keeper
-	ParamsKeeper          paramskeeper.Keeper
+	ParamsKeeper          paramskeeper.Keeper //nolint:staticcheck // SA1019: required by IBC legacy parameter subspaces.
 
 	// ibc keepers
 	IBCKeeper           *ibckeeper.Keeper
