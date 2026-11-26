@@ -16,6 +16,9 @@ jobs:
         run: |
           go version
           go env GOVERSION GOTOOLCHAIN
+      - name: SDK crypto compatibility
+        run: |
+          go test -mod=readonly -count=1 -v -timeout 10m github.com/cosmos/cosmos-sdk/crypto
       - name: Tests
         run: |
           make test
